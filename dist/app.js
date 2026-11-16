@@ -73,9 +73,10 @@ function renderStartGate() {
   }
   if (!canStartBuild()) {
     gate.classList.remove("hidden");
-    gate.innerHTML = '<strong>API Key 尚未配置</strong><span>按上方指引完成配置并重启后端，再重新检查。</span><button id="refreshModelButton" class="secondary-button" type="button">重新检查配置</button>';
+    gate.innerHTML = '<strong>API Key 尚未配置</strong><span>按上方指引完成配置并重启后端，再重新检查。</span><div class="setup-actions"><button id="showConfigExampleButton" class="secondary-button" type="button">查看配置示例</button><button id="refreshModelButton" class="secondary-button" type="button">重新检查配置</button></div><pre id="configExample" class="config-example hidden">MODEL_API_KEY=你的服务端密钥\nMODEL_BASE_URL=https://api.deepseek.com/v1\nMODEL_NAME=deepseek-chat\nAI_WORKBENCH_REQUIRE_MODEL=true</pre>';
     start.disabled = true;
     if (span) span.textContent = "先配置 API Key";
+    $("#showConfigExampleButton")?.addEventListener("click", () => { const example = $("#configExample"); if (!example) return; example.classList.toggle("hidden"); });
     $("#refreshModelButton")?.addEventListener("click", async () => { await loadModelStatus(); render(); });
     return;
   }
