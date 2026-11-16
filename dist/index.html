@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#08131f" />
+    <meta name="theme-color" content="#f5f2ea" />
     <title>AI 产品工作台</title>
     <link rel="stylesheet" href="/app.css" />
   </head>
@@ -11,17 +11,17 @@
     <div class="shell">
       <header class="topbar">
         <a class="brand" href="/">
-          <span class="brand-mark">✦</span>
+          <span class="brand-mark">−</span>
           <span>AI 产品工作台</span>
         </a>
-        <span class="mode-pill"><span class="status-dot"></span>在线预览 · mock 流程</span>
+        <span class="mode-pill"><span class="status-dot"></span>本地预览 · mock 流程</span>
       </header>
 
       <main>
         <section class="hero">
-          <div class="eyebrow">ONE SENTENCE → WORKING PRODUCT</div>
-          <h1>把一句话，变成一个<br /><em>能打开的产品。</em></h1>
-          <p class="hero-copy">不用会写 PRD，也不用会写代码。工作台会先判断需求，再让你确认方向和方案，最后生成后端开发任务、测试和可预览结果。</p>
+          <div class="eyebrow">ONE TASK AT A TIME</div>
+          <h1>把一个想法，<br /><em>推到能运行。</em></h1>
+          <p class="hero-copy">先确认问题，再确认方案。每一步只保留一个需要你决定的事情，直到得到一个可以打开、测试和继续修改的产品。</p>
           <div class="promise-row">
             <span><b>01</b> 说出想法</span><span><b>02</b> 发现需求</span><span><b>03</b> 确认方案</span><span><b>04</b> 后端验收</span>
           </div>
@@ -30,7 +30,7 @@
         <section class="workspace-grid">
           <div class="main-column">
             <div class="section-heading">
-              <div><span class="section-kicker">START HERE</span><h2>你想做什么？</h2></div>
+              <div><span class="section-kicker">CURRENT TASK</span><h2>你想做什么？</h2></div>
               <span class="phase-label" id="phaseLabel">阶段 01 · 想法</span>
             </div>
 
@@ -51,7 +51,7 @@
 
           <aside class="side-column">
             <div class="side-card progress-card">
-              <div class="side-card-head"><span class="section-kicker">BUILD FLOW</span><span class="mini-live">LIVE</span></div>
+              <div class="side-card-head"><span class="section-kicker">PROJECT FLOW</span><span class="mini-live">LOCAL</span></div>
               <div class="flow-list" id="flowList">
                 <div class="flow-item active"><span class="flow-number">01</span><div><strong>想法</strong><small>说清楚想解决什么</small></div><span class="flow-state">现在</span></div>
                 <div class="flow-item"><span class="flow-number">02</span><div><strong>需求发现</strong><small>事实、假设与风险</small></div><span class="flow-state">等待</span></div>
@@ -62,15 +62,15 @@
             </div>
 
             <div class="side-card recent-card">
-              <div class="side-card-head"><span class="section-kicker">RECENT PROJECTS</span><button id="refreshButton" class="icon-button" type="button" title="刷新">↻</button></div>
+              <div class="side-card-head"><span class="section-kicker">PROJECTS</span><button id="refreshButton" class="icon-button" type="button" title="刷新">↻</button></div>
               <div id="projectList" class="project-list"><div class="empty-projects">还没有项目<br /><span>从左侧输入一句话开始</span></div></div>
             </div>
 
-            <div class="quiet-note"><span class="note-mark">✦</span><span>你的想法会保存在这台电脑上。<br />首版不会自动外发或发布。</span></div>
+            <div class="quiet-note"><span class="note-mark">·</span><span>你的想法会保存在这台电脑上。<br />首版不会自动外发或发布。</span></div>
           </aside>
         </section>
       </main>
-      <footer><span>AI 产品工作台 · 在线预览</span><span>本地单用户 · 不自动外发</span></footer>
+      <footer><span>AI 产品工作台 · 本地预览</span><span>单用户 · 不自动外发</span></footer>
     </div>
     <script>window.__ONLINE_PREVIEW__ = true;</script>
     <script src="/app.js" defer></script>
