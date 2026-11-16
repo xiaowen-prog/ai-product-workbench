@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="AI 产品工作台的可视化和结构化审查入口" />
+  <title>AI 产品工作台 · AI 审查入口</title>
+  <style>
+    :root { --ink:#20251f; --muted:#6d756c; --line:#d8d9d2; --paper:#f6f4ee; --panel:#fffdfa; --green:#2f4f3c; --soft:#e7eee7; --amber:#8b6734; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    .page { width:min(1220px,calc(100% - 40px)); margin:0 auto; padding:40px 0 64px; }
+    header { display:flex; justify-content:space-between; gap:24px; align-items:end; padding-bottom:22px; border-bottom:1px solid var(--line); }
+    h1 { margin:0; font-size:clamp(30px,4vw,54px); line-height:1; letter-spacing:-.06em; }
+    .lede { max-width:540px; margin:10px 0 0; color:var(--muted); font-size:14px; line-height:1.7; }
+    .meta { color:var(--muted); font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; text-align:right; }
+    .grid { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:22px; margin-top:24px; align-items:start; }
+    .card { border:1px solid var(--line); border-radius:12px; background:var(--panel); box-shadow:0 10px 30px rgba(43,46,38,.06); }
+    .preview-card { overflow:hidden; }
+    .card-head { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:15px 17px; border-bottom:1px solid var(--line); }
+    .kicker { color:var(--green); font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.14em; text-transform:uppercase; }
+    .badge { padding:5px 8px; border-radius:999px; color:var(--green); background:var(--soft); font:10px ui-monospace,SFMono-Regular,Menlo,monospace; }
+    iframe { display:block; width:100%; height:720px; border:0; background:var(--paper); }
+    .side { display:grid; gap:14px; }
+    .section { padding:17px; }
+    .section h2 { margin:0 0 11px; font-size:15px; letter-spacing:-.025em; }
+    .section p { margin:0; color:var(--muted); font-size:12px; line-height:1.7; }
+    .section ul { margin:0; padding-left:17px; color:#59635a; font-size:12px; line-height:1.75; }
+    .state { display:grid; gap:7px; margin-top:12px; }
+    .state-row { display:grid; grid-template-columns:24px 1fr auto; gap:8px; align-items:center; padding:8px 9px; border-radius:7px; background:#f1f4ef; color:#4d5e4f; font-size:11px; }
+    .state-row b { color:var(--green); font:10px ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .state-row small { color:#899289; font-size:10px; }
+    .check { display:grid; grid-template-columns:1fr auto; gap:12px; padding:8px 0; border-bottom:1px solid #ecece6; font-size:11px; }
+    .check:last-child { border-bottom:0; }
+    .pass { color:var(--green); font-weight:650; }
+    .limit { color:var(--amber); font-weight:650; }
+    code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+    pre { overflow:auto; margin:0; padding:12px; border-radius:8px; color:#506052; background:#f1f4ef; font-size:10px; line-height:1.6; }
+    .footer { margin-top:24px; color:#818980; font-size:10px; line-height:1.6; }
+    @media (max-width:820px) { .page { width:min(100% - 24px,640px); padding-top:24px; } header { display:block; } .meta { margin-top:12px; text-align:left; } .grid { grid-template-columns:1fr; } iframe { height:680px; } }
+  </style>
+</head>
+<body>
+  <main class="page" data-review-target="ai-product-workbench">
+    <header>
+      <div>
+        <div class="kicker">AI REVIEW ENTRY · LOCAL MOCK</div>
+        <h1>AI 产品工作台<br />审查入口</h1>
+        <p class="lede">上方嵌入当前界面，下方提供状态机、响应式证据和事实边界。另一个 AI 可以先看界面，再对照结构化信息审查。</p>
+      </div>
+      <div class="meta">review_version: 2026-11-16<br />source: online-preview/dist<br />mode: localStorage mock</div>
+    </header>
+
+    <section class="grid">
+      <div class="card preview-card">
+        <div class="card-head"><span class="kicker">LIVE TARGET</span><span class="badge">浅色纸张 · A</span></div>
+        <iframe title="AI 产品工作台当前界面" src="index.html?v=review" loading="eager"></iframe>
+      </div>
+
+      <aside class="side">
+        <section class="card section">
+          <h2>审查目标</h2>
+          <ul>
+            <li>是否像一个低干扰、单任务工作台</li>
+            <li>用户是否知道当前要决定什么</li>
+            <li>阶段闸门是否被正确表达</li>
+            <li>移动端是否能完成主流程</li>
+            <li>mock、真实模型和发布状态是否分开</li>
+          </ul>
+        </section>
+
+        <section class="card section">
+          <h2>状态机</h2>
+          <div class="state">
+            <div class="state-row"><b>01</b><span>idea</span><small>一句话入口</small></div>
+            <div class="state-row"><b>02</b><span>needs_discovery</span><small>多轮澄清</small></div>
+            <div class="state-row"><b>03</b><span>needs_intent_confirmation</span><small>需求确认</small></div>
+            <div class="state-row"><b>04</b><span>needs_plan_confirmation</span><small>方案确认</small></div>
+            <div class="state-row"><b>05</b><span>backend_verified</span><small>后端待验收</small></div>
+            <div class="state-row"><b>06</b><span>preview_ready</span><small>已验收预览</small></div>
+            <div class="state-row"><b>07</b><span>V2 needs_discovery</span><small>加新需求</small></div>
+          </div>
+        </section>
+
+        <section class="card section">
+          <h2>已验证证据</h2>
+          <div class="check"><span>需求发现会继续追问</span><span class="pass">通过</span></div>
+          <div class="check"><span>方案修改不回旧题</span><span class="pass">通过</span></div>
+          <div class="check"><span>验收后可创建 V2</span><span class="pass">通过</span></div>
+          <div class="check"><span>320 / 390 / 430px</span><span class="pass">无横溢</span></div>
+          <div class="check"><span>812×375 横屏短屏</span><span class="pass">无横溢</span></div>
+          <div class="check"><span>1280px 桌面</span><span class="pass">通过</span></div>
+        </section>
+
+        <section class="card section">
+          <h2>事实边界</h2>
+          <p>当前页面是静态在线预览，使用 localStorage 和结构化 mock。没有真实模型成功记录、后端生产部署或公网发布证据。</p>
+        </section>
+      </aside>
+    </section>
+
+    <section class="card section" style="margin-top:14px">
+      <h2>给审查 AI 的任务</h2>
+      <pre>请审查这个 AI 产品工作台，按以下顺序输出：
+1. 视觉调性是否符合“少干扰、单任务、像 Minus 的工作台”；
+2. 首屏是否清楚表达当前任务和下一步；
+3. 需求发现、需求确认、方案确认、后端验收是否被区分；
+4. 评分/确认后是否存在重复答题或错误回退；
+5. “加新需求”是否创建新版本而不是改写旧版本；
+6. 320/390/430px、横屏短屏和桌面是否有布局风险；
+7. 给出三个最影响产品质量的修改建议，并区分必须改与可选改。
+不要把 mock、静态预览或计划指标描述成真实模型、部署或发布已通过。</pre>
+    </section>
+    <p class="footer">审查入口只读，不会自动外发、发布、付费或修改项目。主页面文件：index.html · app.js · app.css</p>
+  </main>
+</body>
+</html>

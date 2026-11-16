@@ -1,0 +1,29 @@
+{
+  "name": "AI 产品工作台",
+  "review_version": "2026-11-16",
+  "entry": "ai-review.html",
+  "target": "index.html",
+  "mode": "localStorage mock",
+  "visual_direction": "A · 浅色纸张",
+  "state_machine": ["idea", "needs_discovery", "needs_intent_confirmation", "needs_plan_confirmation", "backend_verified", "preview_ready", "iteration"],
+  "responsive_checks": [
+    {"viewport":"320x800","horizontal_overflow":false},
+    {"viewport":"390x844","horizontal_overflow":false},
+    {"viewport":"430x932","horizontal_overflow":false},
+    {"viewport":"812x375","horizontal_overflow":false},
+    {"viewport":"1280x900","horizontal_overflow":false}
+  ],
+  "claims_boundary": {
+    "mock": true,
+    "real_model_verified": false,
+    "backend_production_deployed": false,
+    "public_release_verified": false
+  },
+  "review_questions": [
+    "视觉调性是否符合少干扰、单任务工作台",
+    "首屏是否清楚表达当前任务和下一步",
+    "四个阶段是否被清楚区分",
+    "方案修改和 V2 是否保持正确的状态机",
+    "移动端是否能完成主流程"
+  ]
+}
