@@ -34,6 +34,10 @@ h1 em { color: var(--accent); font-style: normal; }
 h2 { margin: 9px 0 0; font-size: 23px; letter-spacing: -.03em; }
 .idea-card, .panel, .side-card { border: 1px solid #d8d4ca; background: var(--panel); box-shadow: 0 12px 32px rgba(50,48,42,.08); }
 .idea-card { margin-top: 24px; padding: 23px; border-radius: 12px; }
+.setup-gate { display: grid; gap: 5px; margin: 0 0 15px; padding: 12px 13px; border: 1px solid #d7c9ad; border-radius: 8px; color: #6f5a36; background: #fbf5e8; font-size: 12px; line-height: 1.55; }
+.setup-gate strong { color: #5e4a2c; font-size: 12px; }
+.setup-gate code { padding: 1px 4px; border-radius: 3px; color: #4f5b50; background: rgba(255,255,255,.65); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+.setup-gate .secondary-button { justify-self: start; margin-top: 3px; }
 .new-project-bar { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: rgba(251,250,246,.72); font-size: 12px; }
 .idea-card label { display: block; margin-bottom: 13px; color: #4d554e; font-size: 13px; font-weight: 650; }
 textarea { display: block; width: 100%; min-height: 148px; resize: vertical; border: 0; outline: 0; padding: 0; color: var(--ink); background: transparent; font: inherit; font-size: 20px; line-height: 1.5; letter-spacing: -.025em; }
@@ -41,6 +45,7 @@ textarea::placeholder { color: #9a9c94; }
 textarea:focus, input:focus { outline: 3px solid rgba(70,111,83,.22); outline-offset: 3px; }
 button:focus-visible { outline: 3px solid rgba(70,111,83,.28); outline-offset: 3px; }
 .form-bottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 18px; border-top: 1px solid var(--line); }
+.form-actions { display: flex; align-items: center; gap: 9px; }
 .field-hint { color: #7a8178; font-size: 11px; }
 .hint-icon { display: inline-grid; place-items: center; width: 14px; height: 14px; margin-right: 5px; border: 1px solid #9da69b; border-radius: 50%; font-size: 9px; }
 button { cursor: pointer; font: inherit; }
@@ -129,7 +134,8 @@ footer { display: flex; justify-content: space-between; padding: 17px 0 25px; bo
   .idea-card, .panel, .side-card { padding: 16px; }
   textarea { min-height: 125px; font-size: 18px; }
   .form-bottom { align-items: flex-start; flex-direction: column; }
-  .primary-button { width: 100%; justify-content: space-between; }
+  .form-actions { width: 100%; align-items: stretch; flex-direction: column-reverse; }
+  .form-actions .primary-button, .form-actions .secondary-button { width: 100%; justify-content: space-between; }
   .side-column { grid-template-columns: 1fr; }
   .section-heading { flex-direction: column; align-items: flex-start; }
   .phase-label { white-space: normal; }

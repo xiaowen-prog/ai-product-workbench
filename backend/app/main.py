@@ -9,13 +9,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
-from app.core.config import STATIC_DIR, STORE_PATH
+from app.core.config import STATIC_DIR, STORE_PATH, model_required
 from app.services.store import Store
 
 
-def create_app(store_path: Path | None = None) -> FastAPI:
+def create_app(store_path: Path | None = None, require_model: bool | None = None) -> FastAPI:
     app = FastAPI(title="AI 产品工作台", version="0.2.0")
     app.state.store = Store(store_path or STORE_PATH)
+    app.state.require_model = model_required() if require_model is None else require_model
     app.include_router(router)
 
     @app.get("/health")

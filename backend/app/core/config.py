@@ -51,3 +51,8 @@ def model_settings() -> ModelSettings:
         timeout_seconds=timeout,
         max_retries=retries,
     )
+
+
+def model_required() -> bool:
+    """本地 API 默认要求先配置模型 Key；离线示例不经过这个后端门禁。"""
+    return os.getenv("AI_WORKBENCH_REQUIRE_MODEL", "true").strip().lower() not in {"0", "false", "no", "off"}

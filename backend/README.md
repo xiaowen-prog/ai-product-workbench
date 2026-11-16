@@ -8,7 +8,9 @@
 
 backend/start.sh
 
-打开 http://127.0.0.1:8766/?mode=local。数据默认写入 backend/data/workbench.json，只保存在本机。
+打开 http://127.0.0.1:8766/?mode=local。此模式默认要求 `backend/.env` 配置 `MODEL_API_KEY`；没有 Key 时，创建项目、确认方案和开启 V2 都会被后端拒绝。数据默认写入 `backend/data/workbench.json`，只保存在本机。
+
+离线示例入口是 `/?mode=offline-demo`，它不经过这个 API，也不会创建后端项目。
 
 ## 验证
 

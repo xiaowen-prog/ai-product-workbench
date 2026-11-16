@@ -135,13 +135,13 @@ def test_rejected_intent_returns_to_clarification(client: TestClient):
 
 def test_project_persists_after_new_app_instance(tmp_path: Path):
     store_path = tmp_path / "restart" / "workbench.json"
-    first_app = create_app(store_path)
+    first_app = create_app(store_path, require_model=False)
     with TestClient(first_app) as first_client:
         project = complete_to_backend_verified(first_client, create_pending(first_client))
         accepted = first_client.post(f"/api/v1/projects/{project['id']}/acceptance", json={"passed": True})
         assert accepted.status_code == 200
 
-    second_app = create_app(store_path)
+    second_app = create_app(store_path, require_model=False)
     with TestClient(second_app) as second_client:
         restored = second_client.get(f"/api/v1/projects/{project['id']}")
     assert restored.status_code == 200

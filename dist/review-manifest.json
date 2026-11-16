@@ -3,7 +3,7 @@
   "review_version": "2026-11-16",
   "entry": "ai-review.html",
   "target": "index.html",
-  "mode": "default localStorage mock; ?mode=local uses same-origin FastAPI JSON API",
+  "mode": "default localStorage mock; ?mode=local uses same-origin FastAPI JSON API with API Key gate; ?mode=offline-demo is standalone mock",
   "visual_direction": "A · 浅色纸张",
   "state_machine": ["idea", "needs_discovery", "needs_intent_confirmation", "needs_plan_confirmation", "backend_verified", "preview_ready", "iteration"],
   "responsive_checks": [
@@ -19,6 +19,8 @@
     "backend_production_deployed": false,
     "public_release_verified": false,
     "real_model_button_disabled_when_unconfigured": true,
+    "local_build_requires_api_key": true,
+    "offline_demo_available_without_api_key": true,
     "local_api_tests_passed": true,
     "restart_recovery_tested": true,
     "structured_preview_is_not_public_url": true
@@ -30,6 +32,7 @@
     "方案修改和 V2 是否保持正确的状态机",
     "移动端是否能完成主流程",
     "进入项目后是否只突出当前任务",
-    "需求确认是否提供自由补充入口"
+    "需求确认是否提供自由补充入口",
+    "API Key 未配置时是否阻止真实搭建，并提供独立离线示例"
   ]
 }

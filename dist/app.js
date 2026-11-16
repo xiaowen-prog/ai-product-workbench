@@ -1,9 +1,10 @@
 const state = { projects: [], current: null, model: null, creating: false };
 const online = Boolean(window.__ONLINE_PREVIEW__);
+const offlineDemo = new URLSearchParams(window.location.search).get("mode") === "offline-demo";
 const $ = (selector) => document.querySelector(selector);
 
 const modePill = document.querySelector(".mode-pill");
-if (modePill) modePill.innerHTML = `<span class="status-dot"></span>${online ? "本地预览 · mock 流程" : "本地 API · JSON 可恢复"}`;
+if (modePill) modePill.innerHTML = `<span class="status-dot"></span>${offlineDemo ? "离线示例 · mock" : online ? "本地预览 · mock 流程" : "本地 API · JSON 可恢复"}`;
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
@@ -52,6 +53,39 @@ function syncEntry(project) {
   if (kicker) kicker.textContent = "CURRENT TASK";
   if (title) title.textContent = "当前任务";
 }
+function canStartBuild() { return online || Boolean(state.model?.can_build ?? state.model?.configured); }
+function renderStartGate() {
+  const gate = $("#setupGate"); const start = $("#startBuildButton");
+  if (!gate || !start) return;
+  const span = start.querySelector("span");
+  if (online) {
+    gate.classList.add("hidden");
+    start.disabled = false;
+    if (span) span.textContent = "开始搭建";
+    return;
+  }
+  if (!state.model) {
+    gate.classList.remove("hidden");
+    gate.innerHTML = "正在检查 AI 服务配置…";
+    start.disabled = true;
+    if (span) span.textContent = "检查配置中";
+    return;
+  }
+  if (!canStartBuild()) {
+    gate.classList.remove("hidden");
+    gate.innerHTML = '<strong>开始搭建前需要配置 API Key</strong><span>请在 <code>backend/.env</code> 设置 <code>MODEL_API_KEY</code>，重启后端，再点击刷新。</span><button id="refreshModelButton" class="secondary-button" type="button">重新检查配置</button>';
+    start.disabled = true;
+    if (span) span.textContent = "先配置 API Key";
+    $("#refreshModelButton")?.addEventListener("click", async () => { await loadModelStatus(); render(); });
+    return;
+  }
+  gate.classList.remove("hidden");
+  gate.innerHTML = state.model.configured
+    ? '<strong>AI 服务已配置</strong><span>搭建会使用后端配置的模型，Key 不会进入浏览器。</span>'
+    : '<strong>当前为离线结构化模式</strong><span>后端未要求 API Key；如要使用真实模型，请打开配置并重启后端。</span>';
+  start.disabled = false;
+  if (span) span.textContent = "开始搭建";
+}
 function showOnly(...ids) {
   ["#questionPanel", "#planPanel", "#previewPanel"].forEach((id) => $(id).classList.toggle("hidden", !ids.includes(id)));
 }
@@ -81,11 +115,11 @@ function renderProjects() {
 function render() {
   clearError();
   if (state.creating) {
-    syncEntry(null); showOnly(); setFlow(0, null); renderProjects(); return;
+    syncEntry(null); renderStartGate(); showOnly(); setFlow(0, null); renderProjects(); return;
   }
   const project = state.current;
   syncEntry(project);
-  if (!project) { showOnly(); setFlow(0, null); renderProjects(); return; }
+  if (!project) { renderStartGate(); showOnly(); setFlow(0, null); renderProjects(); return; }
   const status = statusOf(project);
   setFlow(phaseForStatus(status), project);
   if (["needs_clarification", "needs_discovery"].includes(status)) renderDiscovery(project);
@@ -173,7 +207,12 @@ async function postCandidates(projectId, paths, body) {
   }
   throw lastError || new Error("接口暂未接入");
 }
-async function loadModelStatus() { if (online) { state.model = { configured: false, model: "online-mock" }; return; } try { state.model = await api("/api/v1/model/status"); } catch (_) { state.model = { configured: false }; } }
+async function loadModelStatus() {
+  if (online) { state.model = { configured: false, required: false, can_build: true, model: "offline-mock" }; renderStartGate(); return; }
+  try { state.model = await api("/api/v1/model/status"); }
+  catch (_) { state.model = { configured: false, required: true, can_build: false }; }
+  renderStartGate();
+}
 async function loadProjects() {
   try {
     if (online) { loadSaved(); return; }
@@ -191,7 +230,8 @@ async function loadProject(projectId) {
 }
 async function createProject(event) {
   event.preventDefault(); const idea = $("#idea").value.trim(); if (idea.length < 3) { showError("先用一句话说清楚你想做什么"); return; }
-  const button = $("#ideaForm button"); button.disabled = true; clearError();
+  if (!canStartBuild()) { showError("开始搭建前，请先配置 backend/.env 里的 MODEL_API_KEY"); renderStartGate(); return; }
+  const button = $("#startBuildButton"); button.disabled = true; clearError();
   try {
     if (online) {
       const project = { id: `p_${Date.now()}`, idea, version: 1, status: "idea", round: 0, questions: mockQuestions(idea, 0), answers: {}, events: [], created_at: now(), updated_at: now() };
@@ -199,7 +239,7 @@ async function createProject(event) {
       state.current = project; state.projects = [project, ...state.projects.filter((item) => item.id !== project.id)]; persist();
     } else { const payload = await api("/api/v1/projects", { method: "POST", body: JSON.stringify({ idea }) }); state.current = payload.project; localStorage.setItem("ai-workbench-project", state.current.id); await loadProjects(); }
     $("#idea").value = ""; state.creating = false; render();
-  } catch (error) { showError(error.message); }
+  } catch (error) { showError(error.message); if (error.status === 503) await loadModelStatus(); }
   button.disabled = false;
 }
 function currentAnswers() { return state.current?.answers || {}; }
@@ -317,6 +357,7 @@ function loadSaved() { try { state.projects = JSON.parse(localStorage.getItem("a
 async function mockApi() { throw new Error("在线演示不调用本地 API，请按页面按钮体验完整流程"); }
 
 $("#ideaForm").addEventListener("submit", createProject);
+$("#offlineExampleButton").addEventListener("click", () => { window.location.href = `${window.location.pathname}?mode=offline-demo`; });
 $("#showNewProjectButton").addEventListener("click", () => { state.creating = true; render(); $("#idea").focus(); });
 $("#refreshButton").addEventListener("click", () => online ? loadSaved() : loadProjects());
 Promise.all([loadModelStatus(), loadProjects()]);

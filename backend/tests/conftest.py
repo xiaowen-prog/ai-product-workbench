@@ -10,6 +10,6 @@ from app.main import create_app
 
 @pytest.fixture()
 def client(tmp_path: Path):
-    app = create_app(tmp_path / "workbench.json")
+    app = create_app(tmp_path / "workbench.json", require_model=False)
     with TestClient(app) as test_client:
         yield test_client

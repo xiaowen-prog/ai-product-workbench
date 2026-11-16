@@ -36,10 +36,11 @@
 
             <form id="ideaForm" class="idea-card">
               <label for="idea">用一句话描述你想做的产品</label>
+              <div id="setupGate" class="setup-gate hidden" role="status"></div>
               <textarea id="idea" name="idea" maxlength="500" placeholder="例如：我想做一个帮自由职业者把客户需求变成报价单的小工具"></textarea>
               <div class="form-bottom">
                 <span class="field-hint"><span class="hint-icon">i</span> 先说结果，不用描述技术</span>
-                <button class="primary-button" type="submit"><span>开始搭建</span><span class="button-arrow">↗</span></button>
+                <div class="form-actions"><button id="offlineExampleButton" class="secondary-button" type="button">查看离线示例</button><button id="startBuildButton" class="primary-button" type="submit"><span>开始搭建</span><span class="button-arrow">↗</span></button></div>
               </div>
             </form>
             <div id="newProjectBar" class="new-project-bar hidden"><span>当前项目已打开。要开始另一个项目？</span><button id="showNewProjectButton" class="secondary-button" type="button">新建项目</button></div>
@@ -73,7 +74,7 @@
       </main>
       <footer><span>AI 产品工作台 · 本地预览</span><span>单用户 · 不自动外发</span></footer>
     </div>
-    <script>window.__ONLINE_PREVIEW__ = new URLSearchParams(window.location.search).get("mode") !== "local";</script>
-    <script src="/app.js?v=20261116-8" defer></script>
+    <script>window.__ONLINE_PREVIEW__ = !["local"].includes(new URLSearchParams(window.location.search).get("mode"));</script>
+    <script src="/app.js?v=20261116-9" defer></script>
   </body>
 </html>

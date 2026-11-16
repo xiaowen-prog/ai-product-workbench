@@ -27,11 +27,19 @@ def get_store(request: Request) -> Store:
     return request.app.state.store
 
 
+def ensure_model_configured(request: Request) -> None:
+    if request.app.state.require_model and not model_settings().api_key:
+        raise HTTPException(status_code=503, detail={"code": "model_not_configured", "message": "开始搭建前，请先在 backend/.env 配置 MODEL_API_KEY"})
+
+
 @router.get("/model/status")
-def get_model_status() -> dict[str, object]:
+def get_model_status(request: Request) -> dict[str, object]:
     settings = model_settings()
+    required = bool(request.app.state.require_model)
     return {
         "configured": bool(settings.api_key),
+        "required": required,
+        "can_build": bool(settings.api_key) or not required,
         "provider": "openai-compatible",
         "base_url": settings.base_url,
         "model": settings.model,
@@ -45,7 +53,8 @@ def list_projects(store: Store = Depends(get_store)) -> ProjectListResponse:
 
 
 @router.post("/projects", status_code=status.HTTP_201_CREATED)
-def create(request: CreateProjectRequest, store: Store = Depends(get_store)) -> dict:
+def create(request: CreateProjectRequest, http_request: Request, store: Store = Depends(get_store)) -> dict:
+    ensure_model_configured(http_request)
     return {"project": public_project(create_project(store, request.idea))}
 
 
@@ -86,7 +95,9 @@ def intent_confirmation(project_id: str, request: ConfirmationRequest, store: St
 
 
 @router.post("/projects/{project_id}/confirm-plan")
-def plan_confirmation(project_id: str, request: ConfirmationRequest, store: Store = Depends(get_store)) -> dict:
+def plan_confirmation(project_id: str, request: ConfirmationRequest, http_request: Request, store: Store = Depends(get_store)) -> dict:
+    if request.confirmed:
+        ensure_model_configured(http_request)
     try:
         project = confirm_plan(store, project_id, request.confirmed, request.note)
     except KeyError as exc:
@@ -121,7 +132,8 @@ def plan_modification(project_id: str, request: TextRequest, store: Store = Depe
 
 @router.post("/projects/{project_id}/iterations")
 @router.post("/projects/{project_id}/new-requirement")
-def iteration(project_id: str, request: IterationRequest, store: Store = Depends(get_store)) -> dict:
+def iteration(project_id: str, request: IterationRequest, http_request: Request, store: Store = Depends(get_store)) -> dict:
+    ensure_model_configured(http_request)
     try:
         project = create_iteration(store, project_id, request.change_request)
     except KeyError as exc:
@@ -132,8 +144,9 @@ def iteration(project_id: str, request: IterationRequest, store: Store = Depends
 
 
 @router.post("/projects/{project_id}/build")
-def build_backend(project_id: str, store: Store = Depends(get_store)) -> dict:
+def build_backend(project_id: str, http_request: Request, store: Store = Depends(get_store)) -> dict:
     """兼容需要显式 build 按钮的客户端；确认方案后同步生成首版后端交付检查。"""
+    ensure_model_configured(http_request)
     try:
         project = confirm_plan(store, project_id, True, "用户确认方案后开始开发")
     except KeyError as exc:
