@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 产品工作台 · 视觉方向预览</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 28px; background: #dfe2e4; color: #182026; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .page { max-width: 1500px; margin: 0 auto; }
+    .intro { display:flex; justify-content:space-between; gap:24px; align-items:end; margin: 0 0 24px; }
+    .intro h1 { margin:0; font-size:clamp(28px,3vw,44px); letter-spacing:-.055em; font-weight:680; }
+    .intro p { max-width:620px; margin:10px 0 0; color:#5d6970; line-height:1.6; font-size:14px; }
+    .meta { color:#68767d; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; text-align:right; white-space:nowrap; }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+    .option { min-width:0; overflow:hidden; border-radius:18px; box-shadow:0 18px 48px rgba(24,32,38,.12); }
+    .option-head { display:flex; justify-content:space-between; align-items:flex-start; padding:20px 20px 16px; }
+    .option-head h2 { margin:0; font-size:18px; letter-spacing:-.03em; }
+    .option-head p { margin:7px 0 0; font-size:11px; line-height:1.55; opacity:.7; }
+    .badge { padding:6px 8px; border-radius:999px; font:10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .screen { min-height:570px; margin:0 10px 10px; overflow:hidden; border-radius:12px; }
+    .screen-top { display:flex; justify-content:space-between; align-items:center; padding:16px 18px; font-size:11px; }
+    .brand { display:flex; gap:8px; align-items:center; font-weight:650; }
+    .brand-mark { display:grid; place-items:center; width:22px; height:22px; border-radius:7px 7px 7px 2px; font-size:11px; }
+    .screen-body { padding:28px 26px 30px; }
+    .eyebrow { font:10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing:.15em; text-transform:uppercase; }
+    .screen h3 { margin:15px 0 10px; font-size:34px; line-height:1.02; letter-spacing:-.065em; font-weight:650; }
+    .screen .lead { margin:0; max-width:360px; font-size:13px; line-height:1.65; }
+    .workspace { display:grid; grid-template-columns:minmax(0,1fr) 142px; gap:16px; align-items:start; margin-top:32px; }
+    .focus { padding:16px; border-radius:12px; }
+    .focus-label { display:flex; justify-content:space-between; margin-bottom:17px; font:10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .focus h4 { margin:0 0 9px; font-size:17px; letter-spacing:-.035em; }
+    .focus p { margin:0; font-size:11px; line-height:1.65; }
+    .focus textarea { width:100%; min-height:80px; margin-top:20px; padding:10px 0 0; border:0; border-top:1px solid currentColor; background:transparent; resize:none; font:12px/1.55 inherit; opacity:.8; }
+    .cta { display:inline-flex; align-items:center; gap:13px; margin-top:17px; padding:10px 12px; border:0; border-radius:7px 7px 7px 2px; font-size:10px; font-weight:700; }
+    .rail { display:grid; gap:7px; }
+    .rail-item { display:grid; grid-template-columns:18px 1fr; gap:7px; padding:8px 0; font-size:10px; line-height:1.35; }
+    .rail-num { font:10px ui-monospace, SFMono-Regular, Menlo, monospace; opacity:.5; }
+    .rail-item strong { display:block; font-size:10px; }
+    .rail-item small { display:block; margin-top:2px; font-size:9px; opacity:.55; }
+    .note { margin-top:18px; font-size:10px; line-height:1.55; opacity:.62; }
+
+    /* A · paper */
+    .paper { background:#efece5; color:#23221f; }
+    .paper .option-head { background:#efece5; }
+    .paper .badge { color:#415948; background:#dce5d8; }
+    .paper .screen { background:#faf8f3; border:1px solid #d9d4c8; }
+    .paper .screen-top { border-bottom:1px solid #e4dfd5; color:#5e615b; }
+    .paper .brand-mark { color:#f8f5ef; background:#2c342e; }
+    .paper .eyebrow { color:#6b7e69; }
+    .paper .lead, .paper .note { color:#69706a; }
+    .paper .focus { background:#f0eee8; border:1px solid #e2ddd2; }
+    .paper .focus-label { color:#7b817b; }
+    .paper .focus p { color:#59615a; }
+    .paper .focus textarea { color:#242720; border-color:#c8c3b7; }
+    .paper .cta { color:#f8f5ef; background:#303b33; }
+    .paper .rail { color:#71766e; }
+    .paper .rail-item:first-child { color:#2f4e3a; border-left:2px solid #6e8a6f; padding-left:7px; }
+
+    /* B · night */
+    .night { background:#17191b; color:#ece8df; }
+    .night .option-head { background:#17191b; }
+    .night .badge { color:#b8d1c0; background:#25332d; }
+    .night .screen { background:#1f2225; border:1px solid #343a3d; }
+    .night .screen-top { border-bottom:1px solid #343a3d; color:#8e999d; }
+    .night .brand-mark { color:#17201b; background:#b4d4c0; }
+    .night .eyebrow { color:#a8d6bd; }
+    .night .lead, .night .note { color:#9aa4a5; }
+    .night .focus { background:#24282a; border:1px solid #3a4142; }
+    .night .focus-label { color:#9da9a8; }
+    .night .focus p { color:#c2c9c4; }
+    .night .focus textarea { color:#f4f0e8; border-color:#596563; }
+    .night .cta { color:#17201b; background:#b4d4c0; }
+    .night .rail { color:#838e90; }
+    .night .rail-item:first-child { color:#c5e7d3; border-left:2px solid #9fd0b3; padding-left:7px; }
+
+    /* C · blueprint */
+    .blueprint { background:#dfe7eb; color:#112331; }
+    .blueprint .option-head { background:#dfe7eb; }
+    .blueprint .badge { color:#2c5b78; background:#c5d8e3; }
+    .blueprint .screen { background:#f4f7f8; border:1px solid #becdd4; }
+    .blueprint .screen-top { border-bottom:1px solid #d5e0e4; color:#5d707c; }
+    .blueprint .brand-mark { color:#eef5f7; background:#285c78; }
+    .blueprint .eyebrow { color:#2d6c8f; }
+    .blueprint .lead, .blueprint .note { color:#61727c; }
+    .blueprint .focus { background:#e9f0f2; border:1px solid #ccdce1; }
+    .blueprint .focus-label { color:#6b808b; }
+    .blueprint .focus p { color:#3e5662; }
+    .blueprint .focus textarea { color:#122a38; border-color:#aec1ca; }
+    .blueprint .cta { color:#eef5f7; background:#285c78; }
+    .blueprint .rail { color:#6e8089; }
+    .blueprint .rail-item:first-child { color:#235d7e; border-left:2px solid #4783a1; padding-left:7px; }
+
+    @media (max-width:1050px) { .grid { grid-template-columns:1fr; } .screen { min-height:0; } .option { max-width:720px; } }
+    @media (max-width:600px) { body { padding:16px; } .intro { display:block; } .meta { margin-top:12px; text-align:left; } .screen-body { padding:23px 18px 22px; } .screen h3 { font-size:30px; } .workspace { grid-template-columns:1fr; } .rail { grid-template-columns:repeat(3,1fr); } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="intro">
+      <div>
+        <h1>AI 产品工作台 · 三个视觉方向</h1>
+        <p>三种都保留 Minus 式的安静、单任务和低干扰结构，只改变色彩、材质和状态表达。先选调性，再落到主流程页面。</p>
+      </div>
+      <div class="meta">视觉预览 · mock UI<br />不代表最终实现</div>
+    </header>
+    <section class="grid">
+      <article class="option paper">
+        <header class="option-head"><div><h2>方向 A · 浅色纸张</h2><p>最接近 Minus 的克制感，适合长期使用</p></div><span class="badge">最稳妥</span></header>
+        <div class="screen">
+          <div class="screen-top"><span class="brand"><span class="brand-mark">−</span>AI 产品工作台</span><span>本地项目 · 01</span></div>
+          <div class="screen-body"><div class="eyebrow">ONE THING AT A TIME</div><h3>把一个想法，<br /><em>推到能运行。</em></h3><p class="lead">先确认问题，再确认方案。每一步只保留一个需要你决定的事情。</p>
+            <div class="workspace"><section class="focus"><div class="focus-label"><span>当前任务</span><span>01 / 05</span></div><h4>你想做什么？</h4><p>用一句话描述你想让用户完成的结果。</p><textarea placeholder="例如：把客户需求变成可交付的报价单"></textarea><button class="cta">开始澄清 <span>↗</span></button></section><aside class="rail"><div class="rail-item"><span class="rail-num">01</span><div><strong>想法</strong><small>现在</small></div></div><div class="rail-item"><span class="rail-num">02</span><div><strong>需求</strong><small>等待</small></div></div><div class="rail-item"><span class="rail-num">03</span><div><strong>方案</strong><small>等待</small></div></div></aside></div><p class="note">内容保存在这台电脑上。未经确认不会外发。</p></div>
+        </div>
+      </article>
+      <article class="option night">
+        <header class="option-head"><div><h2>方向 B · 深色专注</h2><p>延续当前深色基底，更适合夜间和 AI 状态</p></div><span class="badge">改造成本低</span></header>
+        <div class="screen">
+          <div class="screen-top"><span class="brand"><span class="brand-mark">−</span>AI 产品工作台</span><span>LOCAL · PRIVATE</span></div>
+          <div class="screen-body"><div class="eyebrow">FOCUS WORKSPACE</div><h3>让想法，<br /><em>一步步变成产品。</em></h3><p class="lead">AI 会提出判断，但每个关键闸门都由你确认。</p>
+            <div class="workspace"><section class="focus"><div class="focus-label"><span>当前阶段</span><span>需求发现</span></div><h4>先把需求说准</h4><p>这一轮只问会改变产品方向的问题。</p><textarea placeholder="目标用户现在遇到的具体问题是？"></textarea><button class="cta">记录回答 <span>↗</span></button></section><aside class="rail"><div class="rail-item"><span class="rail-num">01</span><div><strong>想法</strong><small>完成</small></div></div><div class="rail-item"><span class="rail-num">02</span><div><strong>需求</strong><small>现在</small></div></div><div class="rail-item"><span class="rail-num">03</span><div><strong>方案</strong><small>等待</small></div></div></aside></div><p class="note">mock 流程 · 真实模型和发布状态单独记录。</p></div>
+        </div>
+      </article>
+      <article class="option blueprint">
+        <header class="option-head"><div><h2>方向 C · 冷静蓝图</h2><p>更强调结构、追溯和工程交付的可靠感</p></div><span class="badge">产品感最强</span></header>
+        <div class="screen">
+          <div class="screen-top"><span class="brand"><span class="brand-mark">−</span>AI 产品工作台</span><span>PROJECT / 001</span></div>
+          <div class="screen-body"><div class="eyebrow">FROM IDEA TO VERIFIED BUILD</div><h3>把模糊目标，<br /><em>变成可验收的系统。</em></h3><p class="lead">证据、方案、API 和测试沿着同一条链路向前推进。</p>
+            <div class="workspace"><section class="focus"><div class="focus-label"><span>当前闸门</span><span>方案确认</span></div><h4>确认最小方案</h4><p>确认范围和验收标准后，才会生成后端开发任务。</p><textarea placeholder="方案需要调整哪一处？"></textarea><button class="cta">确认方案 <span>↗</span></button></section><aside class="rail"><div class="rail-item"><span class="rail-num">01</span><div><strong>证据</strong><small>完成</small></div></div><div class="rail-item"><span class="rail-num">02</span><div><strong>方案</strong><small>现在</small></div></div><div class="rail-item"><span class="rail-num">03</span><div><strong>验收</strong><small>等待</small></div></div></aside></div><p class="note">每次迁移记录输入、输出、证据和待确认项。</p></div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

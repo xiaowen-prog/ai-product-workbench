@@ -42,11 +42,20 @@ function projectBackend(project) { return project?.backend || project?.engineeri
 function list(value, fallback = []) { return Array.isArray(value) && value.length ? value : fallback; }
 function displayItem(item) { return item && typeof item === "object" ? (item.text || item.message || item.kind || JSON.stringify(item)) : item; }
 function listHtml(value, fallback = ["待补充"]) { return list(value, fallback).map((item) => `<li>${escapeHtml(displayItem(item))}</li>`).join(""); }
+function now() { return new Date().toISOString(); }
+function transition(project, nextStatus, meta = {}) {
+  const from = statusOf(project);
+  project.events = Array.isArray(project.events) ? project.events : [];
+  project.events.push({ id: `evt_${Date.now()}_${project.events.length}`, from, to: nextStatus, actor: meta.actor || "user", input_version: project.version || 1, output_version: project.version || 1, evidence: meta.evidence || [], pending: meta.pending || [], at: now() });
+  project.status = nextStatus;
+  project.updated_at = now();
+}
+function versionLabel(project) { return project?.version && project.version > 1 ? ` · V${project.version}` : ""; }
 
 function renderProjects() {
   const listEl = $("#projectList");
   if (!state.projects.length) { listEl.innerHTML = '<div class="empty-projects">还没有项目<br /><span>从左侧输入一句话开始</span></div>'; return; }
-  listEl.innerHTML = state.projects.map((project) => `<button class="project-item ${state.current?.id === project.id ? "selected" : ""}" data-project-id="${escapeHtml(project.id)}" type="button"><strong>${escapeHtml(project.idea)}</strong><small>${statusLabel(statusOf(project))}</small></button>`).join("");
+  listEl.innerHTML = state.projects.map((project) => `<button class="project-item ${state.current?.id === project.id ? "selected" : ""}" data-project-id="${escapeHtml(project.id)}" type="button"><strong>${escapeHtml(project.idea)}${escapeHtml(versionLabel(project))}</strong><small>${statusLabel(statusOf(project))}${project.parent_id ? " · 由上一版迭代" : ""}</small></button>`).join("");
   listEl.querySelectorAll("[data-project-id]").forEach((button) => button.addEventListener("click", () => loadProject(button.dataset.projectId)));
 }
 
@@ -67,7 +76,7 @@ function render() {
 function renderDiscovery(project) {
   showOnly("#questionPanel");
   const questions = list(project.questions);
-  $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">DISCOVERY · ROUND ${Number(project.discovery_round || project.round || 1)}</span><h3>先把需求说准</h3></div><span class="phase-label">${escapeHtml(project.idea.slice(0, 22))}</span></div><p class="panel-copy">这一轮只问会改变产品方向的问题。回答后，系统会判断还缺不缺信息；需要时会继续追问，不会把固定题数当成完成标准。</p><div class="question-list">${questions.map((question) => `<div class="question-card"><label for="answer-${escapeHtml(question.id)}">${escapeHtml(question.text)}</label><input id="answer-${escapeHtml(question.id)}" data-question-id="${escapeHtml(question.id)}" value="${escapeHtml(project.answers?.[question.id] || "")}" placeholder="${escapeHtml(question.hint || "用自己的话回答即可")}" autocomplete="off" /><small>${escapeHtml(question.reason || "这会影响需求、范围或验收")}</small></div>`).join("")}</div><div class="panel-actions"><button class="primary-button" id="answerButton" type="button"><span>记录回答，继续判断</span><span class="button-arrow">↗</span></button></div>`;
+  $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">DISCOVERY · ROUND ${Number(project.discovery_round || project.round || 1)}${project.version > 1 ? ` · V${project.version}` : ""}</span><h3>先把需求说准</h3></div><span class="phase-label">${escapeHtml(project.idea.slice(0, 22))}</span></div><p class="panel-copy">这一轮只问会改变产品方向的问题。回答后，系统会判断还缺不缺信息；需要时会继续追问，不会把固定题数当成完成标准。${project.change_request ? `本次新增：${escapeHtml(project.change_request)}` : ""}</p><div class="question-list">${questions.map((question) => `<div class="question-card"><label for="answer-${escapeHtml(question.id)}">${escapeHtml(question.text)}</label><input id="answer-${escapeHtml(question.id)}" data-question-id="${escapeHtml(question.id)}" value="${escapeHtml(project.answers?.[question.id] || "")}" placeholder="${escapeHtml(question.hint || "用自己的话回答即可")}" autocomplete="off" /><small>${escapeHtml(question.reason || "这会影响需求、范围或验收")}</small></div>`).join("")}</div><div class="panel-actions"><button class="primary-button" id="answerButton" type="button"><span>记录回答，继续判断</span><span class="button-arrow">↗</span></button></div>`;
   $("#answerButton").addEventListener("click", submitAnswers);
 }
 
@@ -82,12 +91,12 @@ function renderRequirements(project) {
 function renderPlanConfirmation(project) {
   showOnly("#planPanel");
   const intent = projectIntent(project); const plan = project.plan || {};
-  const correction = project.questions?.find((question) => question.id === "plan_correction");
+  const correction = project.plan_revision?.status === "needs_input" ? project.plan_revision : null;
   if (correction) {
-    $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">PLAN REVISION</span><h3>告诉我方案哪里要改</h3></div><span class="phase-label">补充一处即可</span></div><p class="panel-copy">修改会回到方案确认，不会重新开始需求发现。</p><div class="question-list"><div class="question-card"><label for="answer-plan-correction">${escapeHtml(correction.text)}</label><input id="answer-plan-correction" data-question-id="plan_correction" placeholder="${escapeHtml(correction.hint || "用自己的话回答即可")}" autocomplete="off" /></div></div><div class="panel-actions"><button class="primary-button" id="planCorrectionButton" type="button"><span>更新方案</span><span class="button-arrow">↗</span></button></div>`;
+    $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">PLAN REVISION</span><h3>告诉我方案哪里要改</h3></div><span class="phase-label">仍在方案确认</span></div><p class="panel-copy">这里只修改方案，不会把你拉回需求发现，也不会重新回答旧问题。</p><div class="question-list"><div class="question-card"><label for="answer-plan-correction">${escapeHtml(correction.prompt || "方案需要调整哪一处？")}</label><input id="answer-plan-correction" placeholder="用自己的话描述修改" autocomplete="off" /></div></div><div class="panel-actions"><button class="primary-button" id="planCorrectionButton" type="button"><span>更新方案</span><span class="button-arrow">↗</span></button></div>`;
     $("#planCorrectionButton").addEventListener("click", async () => {
       const value = $("#answer-plan-correction").value.trim(); if (!value) { showError("先说清楚要改哪一处"); return; }
-      try { if (online) { project.plan.summary = `${project.plan.summary}（用户补充调整：${value}）`; project.questions = []; persist(); } else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/answers`, { method: "POST", body: JSON.stringify({ answers: { plan_correction: value } }) }); state.current = payload.project; } render(); }
+      try { if (online) { project.plan.summary = `${project.plan.summary}（用户补充调整：${value}）`; project.plan_revision = { status: "applied", note: value, applied_at: now() }; project.events = Array.isArray(project.events) ? project.events : []; project.events.push({ id: `evt_${Date.now()}_${project.events.length}`, from: "plan_draft", to: "plan_draft", actor: "user", input_version: project.version || 1, output_version: project.version || 1, evidence: [value], pending: [], at: now() }); persist(); } else { const payload = await postCandidates(project.id, ["/modify-plan", "/plan/modify"], { note: value }); state.current = payload.project; } render(); }
       catch (error) { showError(error.message); }
     });
     return;
@@ -107,10 +116,14 @@ function renderBackend(project, verified) {
   const accepted = statusOf(project) === "preview_ready";
   const preview = project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(project.plan.preview_label || "产品预览")}</span><span>${accepted ? "验收通过" : verified ? "待人工验收" : "后端开发中"}</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || project.answers?.core_action || "打开预览")} ↗</span></div></div>` : "";
   const title = accepted ? "产品预览已通过验收" : verified ? "后端已生成，等待验收" : "正在生成后端与测试";
-  const action = accepted ? '<button class="primary-button" id="openPreviewButton" type="button"><span>打开已验收预览</span><span class="button-arrow">↗</span></button>' : verified ? '<button class="primary-button" id="acceptanceButton" type="button"><span>验收通过，完成首版闭环</span><span class="button-arrow">↗</span></button>' : '<button class="secondary-button" id="refreshBuildButton" type="button">刷新开发状态</button>';
-  $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">BACKEND DELIVERY · ${accepted ? "PREVIEW" : verified ? "VERIFY" : "BUILDING"}</span><h3>${title}</h3></div><span class="phase-label">${accepted ? "已完成" : verified ? "待你验收" : "进行中"}</span></div><p class="panel-copy">这里展示 API、数据模型、测试和预览状态。任何发布、外发或付费动作都需要你单独确认。</p><div class="plan-grid"><div class="plan-block"><h4>API 与数据</h4><ul>${listHtml(backend.api_contract || backend.api || ["项目状态接口", "需求与方案确认接口", "预览与验收接口"])}</ul></div><div class="plan-block"><h4>开发任务</h4><ul>${tasks.length ? tasks.map((task) => `<li>${escapeHtml(task.message || task.kind)} · ${escapeHtml(task.status || "进行中")}</li>`).join("") : listHtml(backend.tasks, ["后端任务已创建，等待状态回写"])}</ul></div><div class="plan-block"><h4>测试与恢复</h4><ul>${listHtml(checks, ["结构化 API 测试", "重启后数据恢复", "预览链路检查"])}</ul></div><div class="plan-block"><h4>完成条件</h4><ul>${listHtml(backend.acceptance || projectIntent(project).acceptance, ["用户能打开预览", "测试结果可查看", "项目状态可恢复"])}</ul></div></div>${preview}<div class="panel-actions">${action}</div>`;
+  const action = accepted ? '<button class="secondary-button" id="newRequirementButton" type="button">加新需求，开启下一版</button><button class="primary-button" id="openPreviewButton" type="button"><span>打开已验收预览</span><span class="button-arrow">↗</span></button>' : verified ? '<button class="primary-button" id="acceptanceButton" type="button"><span>验收通过，完成首版闭环</span><span class="button-arrow">↗</span></button>' : '<button class="secondary-button" id="refreshBuildButton" type="button">刷新开发状态</button>';
+  const newRequirementForm = accepted && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">NEW VERSION · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经验收的版本。</p><textarea id="newRequirementInput" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
+  $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">BACKEND DELIVERY · ${accepted ? "PREVIEW" : verified ? "VERIFY" : "BUILDING"}</span><h3>${title}</h3></div><span class="phase-label">${accepted ? "已完成" : verified ? "待你验收" : "进行中"}</span></div><p class="panel-copy">这里展示 API、数据模型、测试和预览状态。任何发布、外发或付费动作都需要你单独确认。</p><div class="plan-grid"><div class="plan-block"><h4>API 与数据</h4><ul>${listHtml(backend.api_contract || backend.api || ["项目状态接口", "需求与方案确认接口", "预览与验收接口"])}</ul></div><div class="plan-block"><h4>开发任务</h4><ul>${tasks.length ? tasks.map((task) => `<li>${escapeHtml(task.message || task.kind)} · ${escapeHtml(task.status || "进行中")}</li>`).join("") : listHtml(backend.tasks, ["后端任务已创建，等待状态回写"])}</ul></div><div class="plan-block"><h4>测试与恢复</h4><ul>${listHtml(checks, ["结构化 API 测试", "重启后数据恢复", "预览链路检查"])}</ul></div><div class="plan-block"><h4>完成条件</h4><ul>${listHtml(backend.acceptance || projectIntent(project).acceptance, ["用户能打开预览", "测试结果可查看", "项目状态可恢复"])}</ul></div></div>${preview}${newRequirementForm}<div class="panel-actions">${action}</div>`;
   if (accepted) $("#openPreviewButton").addEventListener("click", () => openPreview(project));
-  else if (verified) $("#acceptanceButton").addEventListener("click", () => acceptBuild(project));
+  if (accepted) {
+    $("#newRequirementButton").addEventListener("click", () => { project.new_requirement_draft = true; persist(); render(); });
+    if (project.new_requirement_draft) $("#createVersionButton").addEventListener("click", () => createNextVersion(project));
+  } else if (verified) $("#acceptanceButton").addEventListener("click", () => acceptBuild(project));
   else $("#refreshBuildButton").addEventListener("click", () => loadProject(project.id));
 }
 
@@ -149,7 +162,8 @@ async function createProject(event) {
   const button = $("#ideaForm button"); button.disabled = true; clearError();
   try {
     if (online) {
-      const project = { id: `p_${Date.now()}`, idea, status: "needs_discovery", round: 0, questions: mockQuestions(idea, 0), answers: {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      const project = { id: `p_${Date.now()}`, idea, version: 1, status: "idea", round: 0, questions: mockQuestions(idea, 0), answers: {}, events: [], created_at: now(), updated_at: now() };
+      transition(project, "needs_discovery", { pending: project.questions.map((question) => question.id) });
       state.current = project; state.projects = [project, ...state.projects.filter((item) => item.id !== project.id)]; persist();
     } else { const payload = await api("/api/v1/projects", { method: "POST", body: JSON.stringify({ idea }) }); state.current = payload.project; localStorage.setItem("ai-workbench-project", state.current.id); await loadProjects(); }
     $("#idea").value = ""; render();
@@ -167,23 +181,23 @@ async function submitAnswers() {
       const nextQuestions = mockQuestions(state.current.idea, Number(state.current.round || 0) + 1, state.current.answers);
       state.current.round = Number(state.current.round || 0) + 1;
       state.current.questions = nextQuestions;
-      if (nextQuestions.length) state.current.status = "needs_discovery";
-      else { state.current.discovery = mockDiscovery(state.current); state.current.intent = mockIntent(state.current); state.current.status = "needs_intent_confirmation"; }
-      state.current.updated_at = new Date().toISOString(); persist();
+      if (nextQuestions.length) transition(state.current, "needs_discovery", { pending: nextQuestions.map((question) => question.id), evidence: Object.entries(answers).map(([id, value]) => `${id}: ${value}`) });
+      else { state.current.discovery = mockDiscovery(state.current); state.current.intent = mockIntent(state.current); transition(state.current, "needs_intent_confirmation", { evidence: Object.entries(answers).map(([id, value]) => `${id}: ${value}`) }); }
+      persist();
     }
     else { const payload = await api(`/api/v1/projects/${encodeURIComponent(state.current.id)}/answers`, { method: "POST", body: JSON.stringify({ answers }) }); state.current = payload.project; state.projects = [state.current, ...state.projects.filter((project) => project.id !== state.current.id)]; }
     render();
   } catch (error) { showError(error.message); button.disabled = false; }
 }
 async function continueDiscovery(project) {
-  if (online) { project.round = Number(project.round || 0) + 1; project.status = "needs_discovery"; project.questions = mockQuestions(project.idea, project.round, project.answers || {}); persist(); render(); return; }
+  if (online) { project.round = Number(project.round || 0) + 1; project.questions = mockQuestions(project.idea, project.round, project.answers || {}); transition(project, "needs_discovery", { pending: project.questions.map((question) => question.id) }); persist(); render(); return; }
   try { const payload = await postCandidates(project.id, ["/confirm-intent"], { confirmed: false, note: "需要补充或修正需求" }); state.current = payload.project; render(); }
   catch (error) { showError(error.message); }
 }
 async function confirmIntent(project) {
   clearError();
   try {
-    if (online) { project.status = "needs_plan_confirmation"; project.plan = mockPlan(project); persist(); }
+    if (online) { project.plan = mockPlan(project); transition(project, "needs_plan_confirmation", { pending: project.plan.open_questions || [] }); persist(); }
     else { const payload = await postCandidates(project.id, ["/confirm-intent", "/requirements/confirm"], { confirmed: true }); state.current = payload.project; }
     render();
   } catch (error) { showError(error.message); }
@@ -196,15 +210,33 @@ async function generateRealPlan() {
 async function confirmPlan(project, confirmed = true) {
   clearError();
   try {
-    if (online) { if (confirmed) { project.status = "backend_verified"; project.backend = mockBackend(project); } else { project.status = "needs_plan_confirmation"; project.questions = mockQuestions(project.idea, Number(project.round || 0) + 1, project.answers || {}); } persist(); }
+    if (online) { if (confirmed) { project.backend = mockBackend(project); transition(project, "backend_verified", { pending: project.backend.tests || [] }); } else { project.plan_revision = { status: "needs_input", prompt: "方案需要调整哪一处？", requested_at: now() }; transition(project, "needs_plan_confirmation", { pending: ["plan_revision"] }); } persist(); }
     else { const payload = await postCandidates(project.id, ["/confirm-plan", "/plan/confirm"], { confirmed }); state.current = payload.project; }
     render();
   } catch (error) { showError(error.message); }
 }
+async function createNextVersion(project) {
+  const input = $("#newRequirementInput"); const change = input?.value.trim();
+  if (!change) { showError("先说清楚这次要新增或改变什么"); return; }
+  const button = $("#createVersionButton"); if (button) button.disabled = true; clearError();
+  try {
+    if (online) {
+      const version = Number(project.version || 1) + 1;
+      const next = { id: `p_${Date.now()}`, parent_id: project.id, root_id: project.root_id || project.id, version, idea: project.idea, change_request: change, status: "idea", round: 0, questions: [], answers: { change_request: change }, discovery: {}, intent: {}, plan: null, backend: null, events: [], created_at: now(), updated_at: now() };
+      next.questions = mockQuestions(next.idea, 0, next.answers, change);
+      transition(next, "needs_discovery", { evidence: [change], pending: next.questions.map((question) => question.id) });
+      project.new_requirement_draft = false;
+      state.current = next; state.projects = [next, ...state.projects]; persist(); render();
+    } else {
+      const payload = await postCandidates(project.id, ["/iterations", "/new-requirement"], { change_request: change });
+      state.current = payload.project; state.projects = [state.current, ...state.projects.filter((item) => item.id !== state.current.id)]; render();
+    }
+  } catch (error) { showError(error.message); if (button) button.disabled = false; }
+}
 async function acceptBuild(project) {
   clearError();
   try {
-    if (online) { project.status = "preview_ready"; project.accepted = true; persist(); }
+    if (online) { project.accepted = true; transition(project, "preview_ready", { pending: [] }); persist(); }
     else { const payload = await postCandidates(project.id, ["/acceptance", "/verify"], { passed: true }); state.current = payload.project; }
     render();
   } catch (error) { showError(error.message); }
@@ -217,13 +249,14 @@ async function openPreview(project) {
   } catch (error) { showError(error.message); }
 }
 
-function mockQuestions(idea, round, answers = {}) {
+function mockQuestions(idea, round, answers = {}, changeRequest = "") {
   const catalog = [
     { id: "target_user", text: "最先服务哪一类具体的人？", hint: "例如：第一次做产品的个人创作者", reason: "决定第一版服务谁" },
     { id: "problem", text: "他们现在遇到的具体问题是什么？", hint: "描述一个真实场景，不用写解决方案", reason: "区分真实需求和想象" },
     { id: "desired_outcome", text: "用户完成一次使用后必须得到什么结果？", hint: "用一个可观察的结果描述", reason: "决定核心闭环与验收" },
     { id: "current_workaround", text: "用户现在用什么办法解决？为什么还不够好？", hint: "没有现成办法可以填：目前没有", reason: "判断机会是否真实" }
   ];
+  if (changeRequest && !answers.affected_area) catalog.unshift({ id: "affected_area", text: "这次新增会改变原产品的哪一段？", hint: "例如：只影响预览，不改变需求确认", reason: "只重算受影响的链路" });
   const missing = catalog.filter((question) => !answers[question.id]);
   if (/支付|医疗|健康|儿童|隐私|数据/.test(idea) && !answers.constraints) missing.push({ id: "constraints", text: "有哪些不能碰的边界？例如数据、平台、成本或权限。", hint: "不知道可以填：暂无", reason: "避免方案越过约束" });
   return missing.slice(0, Math.min(3, missing.length));
