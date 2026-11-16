@@ -17,13 +17,16 @@
     "mock": true,
     "real_model_verified": false,
     "backend_production_deployed": false,
-    "public_release_verified": false
+    "public_release_verified": false,
+    "real_model_button_disabled_when_unconfigured": true
   },
   "review_questions": [
     "视觉调性是否符合少干扰、单任务工作台",
     "首屏是否清楚表达当前任务和下一步",
     "四个阶段是否被清楚区分",
     "方案修改和 V2 是否保持正确的状态机",
-    "移动端是否能完成主流程"
+    "移动端是否能完成主流程",
+    "进入项目后是否只突出当前任务",
+    "需求确认是否提供自由补充入口"
   ]
 }

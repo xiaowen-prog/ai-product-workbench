@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f5f2ea" />
     <title>AI 产品工作台</title>
-    <link rel="stylesheet" href="/app.css" />
+    <link rel="stylesheet" href="/app.css?v=20261116-3" />
   </head>
   <body>
     <div class="shell">
@@ -30,7 +30,7 @@
         <section class="workspace-grid">
           <div class="main-column">
             <div class="section-heading">
-              <div><span class="section-kicker">CURRENT TASK</span><h2>你想做什么？</h2></div>
+              <div><span class="section-kicker" id="entryKicker">START HERE</span><h2 id="entryTitle">你想做什么？</h2></div>
               <span class="phase-label" id="phaseLabel">阶段 01 · 想法</span>
             </div>
 
@@ -42,6 +42,7 @@
                 <button class="primary-button" type="submit"><span>开始搭建</span><span class="button-arrow">↗</span></button>
               </div>
             </form>
+            <div id="newProjectBar" class="new-project-bar hidden"><span>当前项目已打开。要开始另一个项目？</span><button id="showNewProjectButton" class="secondary-button" type="button">新建项目</button></div>
 
             <div id="questionPanel" class="panel hidden"></div>
             <div id="planPanel" class="panel hidden"></div>
@@ -73,6 +74,6 @@
       <footer><span>AI 产品工作台 · 本地预览</span><span>单用户 · 不自动外发</span></footer>
     </div>
     <script>window.__ONLINE_PREVIEW__ = true;</script>
-    <script src="/app.js" defer></script>
+    <script src="/app.js?v=20261116-3" defer></script>
   </body>
 </html>
