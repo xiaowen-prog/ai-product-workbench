@@ -73,7 +73,7 @@ function renderStartGate() {
   }
   if (!canStartBuild()) {
     gate.classList.remove("hidden");
-    gate.innerHTML = '<strong>开始搭建前需要配置 API Key</strong><span>请在 <code>backend/.env</code> 设置 <code>MODEL_API_KEY</code>，重启后端，再点击刷新。</span><button id="refreshModelButton" class="secondary-button" type="button">重新检查配置</button>';
+    gate.innerHTML = '<strong>API Key 尚未配置</strong><span>按上方指引完成配置并重启后端，再重新检查。</span><button id="refreshModelButton" class="secondary-button" type="button">重新检查配置</button>';
     start.disabled = true;
     if (span) span.textContent = "先配置 API Key";
     $("#refreshModelButton")?.addEventListener("click", async () => { await loadModelStatus(); render(); });
