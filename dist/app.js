@@ -1,4 +1,4 @@
-const state = { projects: [], current: null, model: null };
+const state = { projects: [], current: null, model: null, creating: false };
 const online = Boolean(window.__ONLINE_PREVIEW__);
 const $ = (selector) => document.querySelector(selector);
 
@@ -77,6 +77,9 @@ function renderProjects() {
 
 function render() {
   clearError();
+  if (state.creating) {
+    syncEntry(null); showOnly(); setFlow(0, null); renderProjects(); return;
+  }
   const project = state.current;
   syncEntry(project);
   if (!project) { showOnly(); setFlow(0, null); renderProjects(); return; }
@@ -178,6 +181,7 @@ async function loadProjects() {
 }
 async function loadProject(projectId) {
   try {
+    state.creating = false;
     if (online) { state.current = state.projects.find((project) => project.id === projectId) || null; render(); return; }
     const payload = await api(`/api/v1/projects/${encodeURIComponent(projectId)}`); state.current = payload.project; localStorage.setItem("ai-workbench-project", projectId); render();
   } catch (error) { showError(error.message); }
@@ -191,7 +195,7 @@ async function createProject(event) {
       transition(project, "needs_discovery", { pending: project.questions.map((question) => question.id) });
       state.current = project; state.projects = [project, ...state.projects.filter((item) => item.id !== project.id)]; persist();
     } else { const payload = await api("/api/v1/projects", { method: "POST", body: JSON.stringify({ idea }) }); state.current = payload.project; localStorage.setItem("ai-workbench-project", state.current.id); await loadProjects(); }
-    $("#idea").value = ""; render();
+    $("#idea").value = ""; state.creating = false; render();
   } catch (error) { showError(error.message); }
   button.disabled = false;
 }
@@ -310,6 +314,6 @@ function loadSaved() { try { state.projects = JSON.parse(localStorage.getItem("a
 async function mockApi() { throw new Error("在线演示不调用本地 API，请按页面按钮体验完整流程"); }
 
 $("#ideaForm").addEventListener("submit", createProject);
-$("#showNewProjectButton").addEventListener("click", () => { $("#ideaForm").classList.remove("hidden"); $("#newProjectBar").classList.add("hidden"); $("#idea").focus(); });
+$("#showNewProjectButton").addEventListener("click", () => { state.creating = true; render(); $("#idea").focus(); });
 $("#refreshButton").addEventListener("click", () => online ? loadSaved() : loadProjects());
 Promise.all([loadModelStatus(), loadProjects()]);
