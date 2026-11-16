@@ -30,6 +30,15 @@ h1 em { color: var(--accent); font-style: normal; }
 .promise-row b { margin-right: 7px; color: var(--warm); font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 44px; margin-top: 56px; align-items: start; }
 .main-column { min-width: 0; }
+.welcome-guide { margin-bottom: 18px; padding: 17px 18px; border: 1px solid #ccd8ca; border-radius: 10px; color: #536054; background: #edf3ec; }
+.welcome-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.welcome-guide h3 { margin: 8px 0 6px; color: #2e4233; font-size: 16px; letter-spacing: -.02em; }
+.welcome-guide p { margin: 0; color: #6e796f; font-size: 12px; line-height: 1.65; }
+.welcome-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 14px 0 0; padding: 0; list-style: none; counter-reset: guide; }
+.welcome-steps li { counter-increment: guide; padding: 10px 11px; border: 1px solid #d5e0d3; border-radius: 7px; background: rgba(255,255,255,.38); font-size: 11px; line-height: 1.55; }
+.welcome-steps li::before { content: "0" counter(guide); display: block; margin-bottom: 4px; color: var(--accent); font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.guide-dismiss { padding: 6px 8px; border: 0; color: #718071; background: transparent; font-size: 11px; }
+.guide-dismiss:hover { color: var(--accent); }
 .section-heading, .side-card-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
 h2 { margin: 9px 0 0; font-size: 23px; letter-spacing: -.03em; }
 .idea-card, .panel, .side-card { border: 1px solid #d8d4ca; background: var(--panel); box-shadow: 0 12px 32px rgba(50,48,42,.08); }
@@ -141,6 +150,8 @@ footer { display: flex; justify-content: space-between; padding: 17px 0 25px; bo
   .phase-label { white-space: normal; }
   .plan-grid { grid-template-columns: 1fr; }
   .panel-heading { flex-direction: column; }
+  .welcome-steps { grid-template-columns: 1fr; }
+  .welcome-head { align-items: flex-start; }
   .panel-actions { align-items: stretch; flex-direction: column; }
   .panel-actions .primary-button, .panel-actions .secondary-button { width: 100%; justify-content: space-between; }
   .new-project-bar { align-items: stretch; flex-direction: column; }
