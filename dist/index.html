@@ -73,7 +73,7 @@
       </main>
       <footer><span>AI 产品工作台 · 本地预览</span><span>单用户 · 不自动外发</span></footer>
     </div>
-    <script>window.__ONLINE_PREVIEW__ = true;</script>
+    <script>window.__ONLINE_PREVIEW__ = new URLSearchParams(window.location.search).get("mode") !== "local";</script>
     <script src="/app.js?v=20261116-8" defer></script>
   </body>
 </html>

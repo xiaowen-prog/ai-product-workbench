@@ -48,7 +48,7 @@
         <h1>AI 产品工作台<br />审查入口</h1>
         <p class="lede">上方嵌入当前界面，下方提供状态机、响应式证据和事实边界。另一个 AI 可以先看界面，再对照结构化信息审查。</p>
       </div>
-      <div class="meta">review_version: 2026-11-16<br />source: online-preview/dist<br />mode: localStorage mock</div>
+      <div class="meta">review_version: 2026-11-16<br />source: online-preview/dist<br />mode: default localStorage mock · ?mode=local FastAPI</div>
     </header>
 
     <section class="grid">
@@ -97,7 +97,7 @@
 
         <section class="card section">
           <h2>事实边界</h2>
-          <p>当前页面是静态在线预览，使用 localStorage 和结构化 mock。没有真实模型成功记录、后端生产部署或公网发布证据。</p>
+          <p>当前审查入口展示静态 localStorage mock；启动 backend/start.sh 并使用 ?mode=local 时，页面会接入同源 FastAPI JSON API。后端测试已覆盖重启恢复，但仍没有真实模型成功、生产部署或公网发布证据。</p>
         </section>
       </aside>
     </section>

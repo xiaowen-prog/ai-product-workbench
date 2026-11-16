@@ -2,6 +2,9 @@ const state = { projects: [], current: null, model: null, creating: false };
 const online = Boolean(window.__ONLINE_PREVIEW__);
 const $ = (selector) => document.querySelector(selector);
 
+const modePill = document.querySelector(".mode-pill");
+if (modePill) modePill.innerHTML = `<span class="status-dot"></span>${online ? "本地预览 · mock 流程" : "本地 API · JSON 可恢复"}`;
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
 }

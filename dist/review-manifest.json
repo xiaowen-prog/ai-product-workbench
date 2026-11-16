@@ -3,7 +3,7 @@
   "review_version": "2026-11-16",
   "entry": "ai-review.html",
   "target": "index.html",
-  "mode": "localStorage mock",
+  "mode": "default localStorage mock; ?mode=local uses same-origin FastAPI JSON API",
   "visual_direction": "A · 浅色纸张",
   "state_machine": ["idea", "needs_discovery", "needs_intent_confirmation", "needs_plan_confirmation", "backend_verified", "preview_ready", "iteration"],
   "responsive_checks": [
@@ -18,7 +18,10 @@
     "real_model_verified": false,
     "backend_production_deployed": false,
     "public_release_verified": false,
-    "real_model_button_disabled_when_unconfigured": true
+    "real_model_button_disabled_when_unconfigured": true,
+    "local_api_tests_passed": true,
+    "restart_recovery_tested": true,
+    "structured_preview_is_not_public_url": true
   },
   "review_questions": [
     "视觉调性是否符合少干扰、单任务工作台",
