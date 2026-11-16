@@ -1,4 +1,4 @@
-const state = { projects: [], current: null, model: null, creating: false };
+const state = { projects: [], current: null, model: null, creating: false, helpOpen: false };
 const online = Boolean(window.__ONLINE_PREVIEW__);
 const offlineDemo = new URLSearchParams(window.location.search).get("mode") === "offline-demo";
 const $ = (selector) => document.querySelector(selector);
@@ -90,7 +90,8 @@ function renderWelcomeGuide() {
   const guide = $("#welcomeGuide");
   if (!guide) return;
   const seen = localStorage.getItem("ai-workbench-onboarding-seen-v1") === "1";
-  if (state.current || state.creating || seen) { guide.classList.add("hidden"); return; }
+  const helpOpen = state.helpOpen === true;
+  if (state.creating || (!helpOpen && (state.current || seen))) { guide.classList.add("hidden"); return; }
   const intro = !online
     ? "这是本地 API 模式：先配置服务，再开始真实搭建。没有 Key 也可以单独查看离线示例。"
     : offlineDemo
@@ -100,8 +101,8 @@ function renderWelcomeGuide() {
   const secondStep = !online ? "输入一句话描述想做的产品" : "回答会改变方向的问题";
   const thirdStep = !online ? "确认需求和方案后再验收" : "确认后查看示例并继续修改";
   guide.classList.remove("hidden");
-  guide.innerHTML = `<div class="welcome-head"><span class="section-kicker">FIRST VISIT</span><button id="dismissWelcomeGuide" class="guide-dismiss" type="button">知道了</button></div><h3>第一次使用，先看这 3 步</h3><p>${intro}</p><ol class="welcome-steps"><li>${escapeHtml(firstStep)}</li><li>${escapeHtml(secondStep)}</li><li>${escapeHtml(thirdStep)}</li></ol>`;
-  $("#dismissWelcomeGuide")?.addEventListener("click", () => { localStorage.setItem("ai-workbench-onboarding-seen-v1", "1"); renderWelcomeGuide(); });
+  guide.innerHTML = `<div class="welcome-head"><span class="section-kicker">${helpOpen ? "HOW IT WORKS" : "FIRST VISIT"}</span><button id="dismissWelcomeGuide" class="guide-dismiss" type="button">${helpOpen ? "关闭说明" : "知道了"}</button></div><h3>${helpOpen ? "这套工作台怎么用？" : "第一次使用，先看这 3 步"}</h3><p>${intro}</p><ol class="welcome-steps"><li>${escapeHtml(firstStep)}</li><li>${escapeHtml(secondStep)}</li><li>${escapeHtml(thirdStep)}</li></ol>`;
+  $("#dismissWelcomeGuide")?.addEventListener("click", () => { if (helpOpen) state.helpOpen = false; else localStorage.setItem("ai-workbench-onboarding-seen-v1", "1"); renderWelcomeGuide(); });
 }
 function showOnly(...ids) {
   ["#questionPanel", "#planPanel", "#previewPanel"].forEach((id) => $(id).classList.toggle("hidden", !ids.includes(id)));
@@ -376,6 +377,7 @@ async function mockApi() { throw new Error("在线演示不调用本地 API，�
 
 $("#ideaForm").addEventListener("submit", createProject);
 $("#offlineExampleButton").addEventListener("click", () => { window.location.href = `${window.location.pathname}?mode=offline-demo`; });
+$("#helpButton").addEventListener("click", () => { state.helpOpen = !state.helpOpen; render(); });
 $("#showNewProjectButton").addEventListener("click", () => { state.creating = true; render(); $("#idea").focus(); });
 $("#refreshButton").addEventListener("click", () => online ? loadSaved() : loadProjects());
 Promise.all([loadModelStatus(), loadProjects()]);

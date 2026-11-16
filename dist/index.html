@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f5f2ea" />
     <title>AI 产品工作台</title>
-    <link rel="stylesheet" href="/app.css?v=20261116-10" />
+    <link rel="stylesheet" href="/app.css?v=20261116-11" />
   </head>
   <body>
     <div class="shell">
@@ -14,7 +14,7 @@
           <span class="brand-mark">−</span>
           <span>AI 产品工作台</span>
         </a>
-        <span class="mode-pill"><span class="status-dot"></span>本地预览 · mock 流程</span>
+        <div class="topbar-actions"><button id="helpButton" class="help-button" type="button">使用说明</button><span class="mode-pill"><span class="status-dot"></span>本地预览 · mock 流程</span></div>
       </header>
 
       <main>
@@ -76,6 +76,6 @@
       <footer><span>AI 产品工作台 · 本地预览</span><span>单用户 · 不自动外发</span></footer>
     </div>
     <script>window.__ONLINE_PREVIEW__ = !["local"].includes(new URLSearchParams(window.location.search).get("mode"));</script>
-    <script src="/app.js?v=20261116-10" defer></script>
+    <script src="/app.js?v=20261116-11" defer></script>
   </body>
 </html>
