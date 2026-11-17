@@ -15,6 +15,7 @@ from app.schemas.models import (
     ProjectEvent,
     ProjectStatus,
     Question,
+    Trial,
     Task,
 )
 from app.services.model_client import ModelClient, ModelClientError
@@ -226,12 +227,14 @@ def modify_plan(store: Store, project_id: str, text: str) -> Project:
 
 
 def create_iteration(store: Store, project_id: str, change_request: str) -> Project:
-    """Create an independent next version after a preview-ready project."""
+    """Create an independent next version after a recorded trial result."""
     parent = store.get_project(project_id)
     if parent is None:
         raise KeyError(project_id)
-    if parent.status != ProjectStatus.PREVIEW_READY:
-        raise ValueError("只有完成验收的版本才能开启下一版")
+    if parent.status != ProjectStatus.TRIAL:
+        raise ValueError("请先开始试用并记录一次结果，再开启下一版")
+    if parent.trial is None or not parent.trial.feedback:
+        raise ValueError("请先记录一次试用结果，再开启下一版")
     cleaned = change_request.strip()
     if not cleaned:
         raise ValueError("新增需求不能为空")
@@ -253,7 +256,7 @@ def create_iteration(store: Store, project_id: str, change_request: str) -> Proj
     )
     project.events.append(ProjectEvent(
         id=f"evt_{uuid4().hex[:10]}",
-        from_status=ProjectStatus.PREVIEW_READY.value,
+        from_status=parent.status.value,
         to_status=ProjectStatus.NEEDS_DISCOVERY.value,
         actor="user",
         input_version=parent.version,
@@ -262,6 +265,46 @@ def create_iteration(store: Store, project_id: str, change_request: str) -> Proj
         pending=[question.id for question in project.questions],
         at=timestamp,
     ))
+    return store.upsert_project(project)
+
+
+def start_trial(store: Store, project_id: str) -> Project:
+    project = store.get_project(project_id)
+    if project is None:
+        raise KeyError(project_id)
+    if project.status != ProjectStatus.PREVIEW_READY:
+        raise ValueError("只有验收完成的版本才能开始试用")
+    timestamp = now()
+    project.trial = Trial(started_at=timestamp, updated_at=timestamp)
+    transition(project, ProjectStatus.TRIAL, actor="user", pending=["trial_feedback"])
+    project.tasks.append(Task(id=f"task_{uuid4().hex[:10]}", kind="trial", status="running", progress=10, message="试用已开始，等待用户记录一次真实反馈", created_at=timestamp, updated_at=timestamp))
+    project.updated_at = timestamp
+    return store.upsert_project(project)
+
+
+def record_trial_feedback(store: Store, project_id: str, feedback: str, outcome: str) -> Project:
+    project = store.get_project(project_id)
+    if project is None:
+        raise KeyError(project_id)
+    if project.status != ProjectStatus.TRIAL or project.trial is None:
+        raise ValueError("请先开始试用")
+    cleaned = feedback.strip()
+    if not cleaned:
+        raise ValueError("试用反馈不能为空")
+    timestamp = now()
+    project.trial.feedback.append(cleaned)
+    project.trial.outcome = outcome.strip() or "needs_change"
+    project.trial.updated_at = timestamp
+    transition(project, ProjectStatus.TRIAL, actor="user", evidence=[cleaned], pending=[])
+    for task in reversed(project.tasks):
+        if task.kind == "trial" and task.status == "running":
+            task.status = "succeeded"
+            task.progress = 100
+            task.message = "已记录一次试用反馈"
+            task.updated_at = timestamp
+            break
+    project.tasks.append(Task(id=f"task_{uuid4().hex[:10]}", kind="trial_feedback", status="succeeded", progress=100, message="试用反馈已记录", created_at=timestamp, updated_at=timestamp, meta={"outcome": project.trial.outcome}))
+    project.updated_at = timestamp
     return store.upsert_project(project)
 
 

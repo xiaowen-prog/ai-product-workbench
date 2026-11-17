@@ -105,6 +105,22 @@ def test_acceptance_cannot_skip_requirements_or_plan(client: TestClient):
     assert response.json()["error"]["code"] == "backend_not_ready"
 
 
+def test_trial_feedback_is_required_before_iteration(client: TestClient):
+    project = complete_to_backend_verified(client, create_pending(client))
+    accepted = client.post(f"/api/v1/projects/{project['id']}/acceptance", json={"passed": True}).json()["project"]
+    direct = client.post(f"/api/v1/projects/{accepted['id']}/iterations", json={"change_request": "绕过试用直接迭代"})
+    assert direct.status_code == 409
+    started = client.post(f"/api/v1/projects/{accepted['id']}/trial")
+    assert started.status_code == 200
+    blocked = client.post(f"/api/v1/projects/{accepted['id']}/iterations", json={"change_request": "没有反馈就迭代"})
+    assert blocked.status_code == 409
+    feedback = client.post(f"/api/v1/projects/{accepted['id']}/trial-feedback", json={"feedback": "核心流程可以继续", "outcome": "works"})
+    assert feedback.status_code == 200
+    next_version = client.post(f"/api/v1/projects/{accepted['id']}/iterations", json={"change_request": "新增导入入口"})
+    assert next_version.status_code == 200
+    assert next_version.json()["project"]["version"] == 2
+
+
 def test_answers_reject_unknown_question_but_allow_partial_round(client: TestClient):
     project = create_pending(client)
     unknown = client.post(

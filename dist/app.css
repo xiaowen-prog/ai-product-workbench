@@ -130,6 +130,7 @@ footer { display: flex; justify-content: space-between; padding: 17px 0 25px; bo
 .supplement-box h4 { margin: 8px 0 6px; font-size: 15px; }
 .supplement-box p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
 .supplement-box textarea { min-height: 76px; margin-top: 14px; padding: 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: rgba(255,255,255,.6); font-size: 16px; }
+.supplement-box select { display: block; width: 100%; margin-top: 14px; padding: 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: rgba(255,255,255,.6); font: inherit; font-size: 14px; }
 @media (max-width: 820px) {
   .shell { width: min(100% - 32px, 640px); }
   main { padding-top: 42px; }

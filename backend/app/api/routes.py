@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from app.core.config import model_settings
 from pydantic import BaseModel, Field
 
-from app.schemas.models import AcceptanceRequest, AnswerRequest, ConfirmationRequest, CreateProjectRequest, ProjectListResponse, public_project
+from app.schemas.models import AcceptanceRequest, AnswerRequest, ConfirmationRequest, CreateProjectRequest, ProjectListResponse, TrialFeedbackRequest, public_project
 from app.services.model_client import ModelClientError
 from app.services.store import Store
-from app.services.workbench import add_supplement, answer_project, confirm_intent, confirm_plan, create_iteration, create_project, generate_real_plan, modify_plan, record_acceptance
+from app.services.workbench import add_supplement, answer_project, confirm_intent, confirm_plan, create_iteration, create_project, generate_real_plan, modify_plan, record_acceptance, record_trial_feedback, start_trial
 
 
 router = APIRouter(prefix="/api/v1")
@@ -164,6 +164,29 @@ def acceptance(project_id: str, request: AcceptanceRequest, store: Store = Depen
         raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail={"code": "backend_not_ready", "message": str(exc)}) from exc
+    return {"project": public_project(project)}
+
+
+@router.post("/projects/{project_id}/trial")
+@router.post("/projects/{project_id}/trial/start")
+def trial_start(project_id: str, store: Store = Depends(get_store)) -> dict:
+    try:
+        project = start_trial(store, project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail={"code": "invalid_transition", "message": str(exc)}) from exc
+    return {"project": public_project(project)}
+
+
+@router.post("/projects/{project_id}/trial-feedback")
+def trial_feedback(project_id: str, request: TrialFeedbackRequest, store: Store = Depends(get_store)) -> dict:
+    try:
+        project = record_trial_feedback(store, project_id, request.feedback, request.outcome)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail={"code": "invalid_transition", "message": str(exc)}) from exc
     return {"project": public_project(project)}
 
 

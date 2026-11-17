@@ -5,7 +5,7 @@
   "target": "index.html",
   "mode": "default localStorage mock; ?mode=local uses same-origin FastAPI JSON API with API Key gate; ?mode=offline-demo is standalone mock",
   "visual_direction": "A · 浅色纸张",
-  "state_machine": ["idea", "needs_discovery", "needs_intent_confirmation", "needs_plan_confirmation", "backend_verified", "preview_ready", "iteration"],
+  "state_machine": ["idea", "needs_discovery", "needs_intent_confirmation", "needs_plan_confirmation", "backend_building", "backend_verified", "preview_ready", "trial", "v2_needs_discovery"],
   "responsive_checks": [
     {"viewport":"320x800","horizontal_overflow":false},
     {"viewport":"390x844","horizontal_overflow":false},
@@ -26,13 +26,15 @@
     "restart_recovery_tested": true,
     "structured_preview_is_not_public_url": true,
     "v2_starts_with_affected_area_question": true,
-    "v2_real_model_smoke_verified": true
+    "v2_real_model_smoke_verified": true,
+    "trial_requires_feedback_before_iteration": true,
+    "trial_feedback_is_persisted": true
   },
   "review_questions": [
     "视觉调性是否符合少干扰、单任务工作台",
     "首屏是否清楚表达当前任务和下一步",
-    "四个阶段是否被清楚区分",
-    "方案修改和 V2 是否保持正确的状态机",
+    "需求、方案、开发、验收和试用阶段是否被清楚区分",
+    "方案修改、试用反馈和 V2 是否保持正确的状态机",
     "移动端是否能完成主流程",
     "进入项目后是否只突出当前任务",
     "需求确认是否提供自由补充入口",

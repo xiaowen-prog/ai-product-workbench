@@ -33,6 +33,20 @@ def test_project_flow_persists_and_creates_iteration(tmp_path: Path):
     response = client.post(f"/api/v1/projects/{project['id']}/acceptance", json={"passed": True})
     assert response.json()["project"]["status"] == "preview_ready"
 
+    trial = client.post(f"/api/v1/projects/{project['id']}/trial")
+    assert trial.status_code == 200
+    assert trial.json()["project"]["status"] == "trial"
+    feedback = client.post(
+        f"/api/v1/projects/{project['id']}/trial-feedback",
+        json={"feedback": "导入入口的方向清楚，可以继续下一版", "outcome": "works"},
+    )
+    assert feedback.status_code == 200
+    assert feedback.json()["project"]["trial"]["feedback"]
+    reloaded = TestClient(create_app(data, require_model=False))
+    persisted = reloaded.get(f"/api/v1/projects/{project['id']}").json()["project"]
+    assert persisted["status"] == "trial"
+    assert persisted["trial"]["feedback"] == ["导入入口的方向清楚，可以继续下一版"]
+
     next_response = client.post(f"/api/v1/projects/{project['id']}/iterations", json={"change_request": "新增导入入口"})
     assert next_response.status_code == 200
     next_project = next_response.json()["project"]

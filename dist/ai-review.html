@@ -64,6 +64,7 @@
             <li>是否像一个低干扰、单任务工作台</li>
             <li>用户是否知道当前要决定什么</li>
             <li>阶段闸门是否被正确表达</li>
+            <li>试用反馈是否成为下一版的前置条件</li>
             <li>移动端是否能完成主流程</li>
             <li>mock、真实模型和发布状态是否分开</li>
           </ul>
@@ -76,9 +77,11 @@
             <div class="state-row"><b>02</b><span>needs_discovery</span><small>多轮澄清</small></div>
             <div class="state-row"><b>03</b><span>needs_intent_confirmation</span><small>需求确认</small></div>
             <div class="state-row"><b>04</b><span>needs_plan_confirmation</span><small>方案确认</small></div>
-            <div class="state-row"><b>05</b><span>backend_verified</span><small>后端待验收</small></div>
-            <div class="state-row"><b>06</b><span>preview_ready</span><small>示例可查看</small></div>
-            <div class="state-row"><b>07</b><span>V2 needs_discovery</span><small>加新需求</small></div>
+            <div class="state-row"><b>05</b><span>backend_building</span><small>后端开发中</small></div>
+            <div class="state-row"><b>06</b><span>backend_verified</span><small>后端待验收</small></div>
+            <div class="state-row"><b>07</b><span>preview_ready</span><small>示例可查看</small></div>
+            <div class="state-row"><b>08</b><span>trial</span><small>记录一次反馈</small></div>
+            <div class="state-row"><b>09</b><span>V2 needs_discovery</span><small>反馈后迭代</small></div>
           </div>
         </section>
 
@@ -88,7 +91,8 @@
           <div class="check"><span>进入项目后只显示当前任务</span><span class="pass">通过</span></div>
           <div class="check"><span>需求确认有自由补充框</span><span class="pass">通过</span></div>
           <div class="check"><span>方案修改不回旧题</span><span class="pass">通过</span></div>
-          <div class="check"><span>验收后可创建 V2</span><span class="pass">通过</span></div>
+          <div class="check"><span>验收后可开始试用</span><span class="pass">通过</span></div>
+          <div class="check"><span>试用反馈后才可开启 V2</span><span class="pass">通过</span></div>
           <div class="check"><span>320 / 390 / 430px</span><span class="pass">无横溢</span></div>
           <div class="check"><span>812×375 横屏短屏</span><span class="pass">无横溢</span></div>
           <div class="check"><span>1280px 桌面</span><span class="pass">通过</span></div>
@@ -98,7 +102,7 @@
 
         <section class="card section">
           <h2>事实边界</h2>
-          <p>当前审查入口展示静态 localStorage mock；启动 backend/start.sh 并使用 ?mode=local 时，页面会接入同源 FastAPI JSON API，并在开始搭建前强制检查 MODEL_API_KEY。没有 Key 时可进入 ?mode=offline-demo 查看独立离线示例。已有一次真实模型方案生成和本地重启恢复证据，但仍没有质量评分、生产部署或公网发布证据。</p>
+          <p>当前审查入口展示静态 localStorage mock；启动 backend/start.sh 并使用 ?mode=local 时，页面会接入同源 FastAPI JSON API，并在开始搭建前强制检查 MODEL_API_KEY。验收后的 `trial` 阶段要求记录 outcome 与文字 feedback，反馈写入项目后才能开启下一版。没有 Key 时可进入 ?mode=offline-demo 查看独立离线示例。已有一次真实模型方案生成和本地重启恢复证据，但仍没有真实用户试用、质量评分、生产部署或公网发布证据。</p>
         </section>
       </aside>
     </section>
@@ -108,11 +112,12 @@
       <pre>请审查这个 AI 产品工作台，按以下顺序输出：
 1. 视觉调性是否符合“少干扰、单任务、像 Minus 的工作台”；
 2. 首屏是否清楚表达当前任务和下一步；
-3. 需求发现、需求确认、方案确认、后端验收是否被区分；
+3. 需求发现、需求确认、方案确认、后端开发、后端验收和试用是否被区分；
 4. 评分/确认后是否存在重复答题或错误回退；
-5. “加新需求”是否创建新版本而不是改写旧版本；
-6. 320/390/430px、横屏短屏和桌面是否有布局风险；
-7. 给出三个最影响产品质量的修改建议，并区分必须改与可选改。
+5. `trial` 是否先记录 outcome/feedback，再允许“加新需求”；
+6. “加新需求”是否创建新版本而不是改写旧版本；
+7. 320/390/430px、横屏短屏和桌面是否有布局风险；
+8. 给出三个最影响产品质量的修改建议，并区分必须改与可选改。
 不要把 mock、静态预览或计划指标描述成真实模型、部署或发布已通过。</pre>
     </section>
     <p class="footer">审查入口只读，不会自动外发、发布、付费或修改项目。主页面文件：index.html · app.js · app.css</p>

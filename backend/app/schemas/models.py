@@ -16,6 +16,7 @@ class ProjectStatus(str, Enum):
     BACKEND_VERIFIED = "backend_verified"
     PLAN_READY = "plan_ready"
     PREVIEW_READY = "preview_ready"
+    TRIAL = "trial"
 
 
 class Question(BaseModel):
@@ -89,6 +90,14 @@ class Task(BaseModel):
     meta: dict[str, Any] = Field(default_factory=dict)
 
 
+class Trial(BaseModel):
+    status: str = "active"
+    outcome: str = ""
+    feedback: list[str] = Field(default_factory=list)
+    started_at: datetime
+    updated_at: datetime
+
+
 class ProjectEvent(BaseModel):
     id: str
     from_status: str
@@ -119,6 +128,7 @@ class Project(BaseModel):
     intent: Intent | None = None
     plan: ProductPlan | None = None
     backend: BackendBuild | None = None
+    trial: Trial | None = None
     confirmations: Confirmation = Field(default_factory=Confirmation)
     tasks: list[Task] = Field(default_factory=list)
     events: list[ProjectEvent] = Field(default_factory=list)
@@ -164,6 +174,11 @@ class ConfirmationRequest(BaseModel):
 class AcceptanceRequest(BaseModel):
     passed: bool
     note: str = Field(default="", max_length=500)
+
+
+class TrialFeedbackRequest(BaseModel):
+    feedback: str = Field(min_length=1, max_length=2000)
+    outcome: str = Field(default="needs_change", max_length=40)
 
 
 class ProjectListResponse(BaseModel):
