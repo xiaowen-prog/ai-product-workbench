@@ -1,0 +1,13 @@
+.git
+.gitignore
+.sites-checkout
+.sites-runtime
+backend/.env
+backend/.venv
+backend/data
+backend/__pycache__
+backend/app/**/__pycache__
+backend/tests
+node_modules
+*.pyc
+*.log

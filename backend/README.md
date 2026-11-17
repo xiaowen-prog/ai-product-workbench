@@ -10,6 +10,8 @@ backend/start.sh
 
 打开 http://127.0.0.1:8766/?mode=local。此模式默认要求 `backend/.env` 配置 `MODEL_API_KEY`；没有 Key 时，创建项目、确认方案和开启 V2 都会被后端拒绝。数据默认写入 `backend/data/workbench.json`，只保存在本机。
 
+部署到支持 Python 容器的公网平台时，启动入口会读取平台注入的 `PORT`，默认监听 `0.0.0.0`；本地需要限制为回环地址时可设置 `AI_WORKBENCH_HOST=127.0.0.1`。仓库根目录的 `Dockerfile` 可直接构建 FastAPI 运行时。公网部署前必须在平台 Secret 中配置 `MODEL_API_KEY`，不要把 Key 写进仓库或镜像；`AI_WORKBENCH_DATA_DIR` 默认仍是容器内 JSON 文件，若平台会重启或扩容，需要另接持久化存储后再把重启恢复当成生产能力。
+
 离线示例入口是 `/?mode=offline-demo`，它不经过这个 API，也不会创建后端项目。
 
 ## 验证
