@@ -163,6 +163,9 @@ def test_project_persists_after_new_app_instance(tmp_path: Path):
         project = complete_to_backend_verified(first_client, create_pending(first_client))
         accepted = first_client.post(f"/api/v1/projects/{project['id']}/acceptance", json={"passed": True})
         assert accepted.status_code == 200
+        verified = first_client.post(f"/api/v1/projects/{project['id']}/preview/verify")
+        assert verified.status_code == 200
+        assert verified.json()["preview"]["status"] == "verified"
 
     second_app = create_app(store_path, require_model=False)
     with TestClient(second_app) as second_client:
@@ -170,8 +173,12 @@ def test_project_persists_after_new_app_instance(tmp_path: Path):
         runtime = second_client.get(f"/api/v1/projects/{project['id']}/preview")
         assert runtime.status_code == 200
         runtime_payload = runtime.json()["preview"]
+        assert runtime_payload["status"] == "verified"
         assert second_client.get(runtime_payload["url"].replace("http://testserver", "")).status_code == 200
         assert second_client.get(runtime_payload["health_url"].replace("http://testserver", "")).json()["status"] == "ok"
+        action = second_client.post(runtime_payload["action_url"].replace("http://testserver", ""), json={"input": "客户需要一份报价单"})
+        assert action.status_code == 200
+        assert action.json()["result"]["title"]
     assert restored.status_code == 200
     assert restored.json()["project"]["status"] == "preview_ready"
     assert restored.json()["project"]["backend"]["status"] == "verified"
