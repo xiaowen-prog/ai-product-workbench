@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse
 
 from app.core.config import model_settings
 from pydantic import BaseModel, Field
 
-from app.schemas.models import AcceptanceRequest, AnswerRequest, ConfirmationRequest, CreateProjectRequest, ProjectListResponse, TrialFeedbackRequest, public_project
+from app.schemas.models import AcceptanceRequest, AnswerRequest, ConfirmationRequest, CreateProjectRequest, ProjectListResponse, RuntimeActionRequest, TrialFeedbackRequest, public_project
 from app.services.model_client import ModelClientError
+from app.services.preview_runtime import ensure_preview, now as runtime_now, render_runtime_page, run_runtime, verify_runtime
 from app.services.store import Store
 from app.services.workbench import add_supplement, answer_project, confirm_intent, confirm_plan, create_iteration, create_project, generate_real_plan, modify_plan, record_acceptance, record_trial_feedback, start_trial
 
 
 router = APIRouter(prefix="/api/v1")
+runtime_router = APIRouter()
 
 
 class TextRequest(BaseModel):
@@ -205,13 +208,16 @@ def real_plan(project_id: str, request: AnswerRequest, store: Store = Depends(ge
 
 
 @router.get("/projects/{project_id}/preview")
-def preview(project_id: str, store: Store = Depends(get_store)) -> dict:
+def preview(project_id: str, request: Request, store: Store = Depends(get_store)) -> dict:
     project = store.get_project(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"})
-    if project.plan is None or project.intent is None or project.status != "preview_ready":
+    if project.plan is None or project.intent is None or project.status not in {"preview_ready", "trial"}:
         raise HTTPException(status_code=409, detail={"code": "preview_not_ready", "message": "先完成需求确认、方案确认和后端验收，再打开预览"})
+    ensure_preview(project)
+    project = store.upsert_project(project)
     source = "真实模型" if any(task.kind == "generate_plan_real" and task.status == "succeeded" for task in project.tasks) else "mock"
+    artifact = project.preview
     return {
         "project_id": project.id,
         "title": project.plan.title,
@@ -220,6 +226,66 @@ def preview(project_id: str, store: Store = Depends(get_store)) -> dict:
             "headline": project.plan.title,
             "body": project.plan.summary,
             "primary_action": project.answers.get("desired_outcome", project.answers.get("core_action", "开始体验")),
-            "badge": f"{source} 预览",
+            "badge": f"{source}方案 · 本地可运行预览" if artifact.status == "verified" else f"{source}方案 · 本地运行时预览",
+            "url": str(request.url_for("runtime_page", project_id=project.id)),
+            "health_url": str(request.url_for("runtime_health", project_id=project.id)),
+            "action_url": str(request.url_for("runtime_action", project_id=project.id)),
+            "kind": artifact.kind,
+            "status": artifact.status,
+            "checks": [check.model_dump(mode="json") for check in artifact.checks],
+            "started_at": artifact.started_at,
+            "verified_at": artifact.verified_at,
         },
     }
+
+
+@router.post("/projects/{project_id}/preview/verify")
+def preview_verify(project_id: str, request: Request, store: Store = Depends(get_store)) -> dict:
+    project = store.get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"})
+    if project.plan is None or project.intent is None or project.status not in {"preview_ready", "trial"}:
+        raise HTTPException(status_code=409, detail={"code": "preview_not_ready", "message": "先完成需求确认、方案确认和后端验收，再验证预览"})
+    verify_runtime(project)
+    project.updated_at = runtime_now()
+    project = store.upsert_project(project)
+    return {"project": public_project(project), "preview": preview(project_id, request, store)["preview"]}
+
+
+@router.post("/runtime/{project_id}/run", name="runtime_action")
+def runtime_action(project_id: str, request: RuntimeActionRequest, store: Store = Depends(get_store)) -> dict:
+    project = store.get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"})
+    if project.plan is None or project.status not in {"preview_ready", "trial"}:
+        raise HTTPException(status_code=409, detail={"code": "runtime_not_ready", "message": "先完成后端验收，再运行产品预览"})
+    try:
+        return {"result": run_runtime(project, request.input)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"code": "invalid_runtime_input", "message": str(exc)}) from exc
+
+
+@runtime_router.get("/runtime/{project_id}/", name="runtime_page", response_class=HTMLResponse)
+def runtime_page(project_id: str, request: Request, store: Store = Depends(get_store)) -> HTMLResponse:
+    project = store.get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"})
+    if project.plan is None or project.status not in {"preview_ready", "trial"}:
+        raise HTTPException(status_code=409, detail={"code": "runtime_not_ready", "message": "先完成后端验收，再打开产品预览"})
+    ensure_preview(project)
+    store.upsert_project(project)
+    return HTMLResponse(render_runtime_page(
+        project,
+        str(request.url_for("runtime_action", project_id=project.id)),
+        str(request.url_for("runtime_health", project_id=project.id)),
+    ))
+
+
+@runtime_router.get("/runtime/{project_id}/health", name="runtime_health")
+def runtime_health(project_id: str, store: Store = Depends(get_store)) -> dict:
+    project = store.get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"})
+    if project.plan is None or project.status not in {"preview_ready", "trial"}:
+        raise HTTPException(status_code=409, detail={"code": "runtime_not_ready", "message": "运行时尚未准备好"})
+    return {"status": "ok", "runtime": "local", "project_id": project.id}

@@ -98,6 +98,24 @@ class Trial(BaseModel):
     updated_at: datetime
 
 
+class RuntimeCheck(BaseModel):
+    id: str
+    label: str
+    status: str
+    detail: str = ""
+
+
+class PreviewArtifact(BaseModel):
+    kind: str = "runtime"
+    status: str = "unverified"
+    path: str
+    health_path: str
+    action_path: str
+    checks: list[RuntimeCheck] = Field(default_factory=list)
+    started_at: datetime
+    verified_at: datetime | None = None
+
+
 class ProjectEvent(BaseModel):
     id: str
     from_status: str
@@ -129,6 +147,7 @@ class Project(BaseModel):
     plan: ProductPlan | None = None
     backend: BackendBuild | None = None
     trial: Trial | None = None
+    preview: PreviewArtifact | None = None
     confirmations: Confirmation = Field(default_factory=Confirmation)
     tasks: list[Task] = Field(default_factory=list)
     events: list[ProjectEvent] = Field(default_factory=list)
@@ -179,6 +198,10 @@ class AcceptanceRequest(BaseModel):
 class TrialFeedbackRequest(BaseModel):
     feedback: str = Field(min_length=1, max_length=2000)
     outcome: str = Field(default="needs_change", max_length=40)
+
+
+class RuntimeActionRequest(BaseModel):
+    input: str = Field(min_length=1, max_length=5000)
 
 
 class ProjectListResponse(BaseModel):

@@ -8,7 +8,7 @@ from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import router
+from app.api.routes import router, runtime_router
 from app.core.config import STATIC_DIR, STORE_PATH, model_required
 from app.services.store import Store
 
@@ -18,6 +18,7 @@ def create_app(store_path: Path | None = None, require_model: bool | None = None
     app.state.store = Store(store_path or STORE_PATH)
     app.state.require_model = model_required() if require_model is None else require_model
     app.include_router(router)
+    app.include_router(runtime_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

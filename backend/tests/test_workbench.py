@@ -95,7 +95,10 @@ def test_full_fusion_lifecycle_requires_confirmations(client: TestClient):
     accepted = acceptance.json()["project"]
     assert accepted["status"] == "preview_ready"
     assert accepted["confirmations"]["acceptance"] is True
-    assert client.get(f"/api/v1/projects/{project['id']}/preview").json()["preview"]["badge"] == "mock 预览"
+    preview = client.get(f"/api/v1/projects/{project['id']}/preview").json()["preview"]
+    assert preview["badge"] == "mock方案 · 本地运行时预览"
+    assert preview["status"] == "unverified"
+    assert client.get(preview["url"].replace("http://testserver", "")).status_code == 200
 
 
 def test_acceptance_cannot_skip_requirements_or_plan(client: TestClient):
@@ -110,6 +113,10 @@ def test_trial_feedback_is_required_before_iteration(client: TestClient):
     accepted = client.post(f"/api/v1/projects/{project['id']}/acceptance", json={"passed": True}).json()["project"]
     direct = client.post(f"/api/v1/projects/{accepted['id']}/iterations", json={"change_request": "绕过试用直接迭代"})
     assert direct.status_code == 409
+    not_verified = client.post(f"/api/v1/projects/{accepted['id']}/trial")
+    assert not_verified.status_code == 409
+    verified = client.post(f"/api/v1/projects/{accepted['id']}/preview/verify")
+    assert verified.status_code == 200
     started = client.post(f"/api/v1/projects/{accepted['id']}/trial")
     assert started.status_code == 200
     blocked = client.post(f"/api/v1/projects/{accepted['id']}/iterations", json={"change_request": "没有反馈就迭代"})
@@ -160,6 +167,11 @@ def test_project_persists_after_new_app_instance(tmp_path: Path):
     second_app = create_app(store_path, require_model=False)
     with TestClient(second_app) as second_client:
         restored = second_client.get(f"/api/v1/projects/{project['id']}")
+        runtime = second_client.get(f"/api/v1/projects/{project['id']}/preview")
+        assert runtime.status_code == 200
+        runtime_payload = runtime.json()["preview"]
+        assert second_client.get(runtime_payload["url"].replace("http://testserver", "")).status_code == 200
+        assert second_client.get(runtime_payload["health_url"].replace("http://testserver", "")).json()["status"] == "ok"
     assert restored.status_code == 200
     assert restored.json()["project"]["status"] == "preview_ready"
     assert restored.json()["project"]["backend"]["status"] == "verified"

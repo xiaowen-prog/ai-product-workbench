@@ -12,7 +12,8 @@ function escapeHtml(value) {
 function showError(message) { const panel = $("#errorPanel"); panel.textContent = message; panel.classList.remove("hidden"); }
 function clearError() { $("#errorPanel").classList.add("hidden"); }
 function statusOf(project) { return project?.status || "idea"; }
-function statusLabel(status) {
+function statusLabel(status, project) {
+  if (status === "preview_ready") return project?.preview?.status === "verified" ? "可运行预览" : "预览待验证";
   return {
     idea: "等待开始", needs_clarification: "需求发现", needs_discovery: "需求发现",
     needs_intent_confirmation: "待确认需求", requirements_confirmed: "需求已确认",
@@ -131,7 +132,7 @@ function versionLabel(project) { return project?.version && project.version > 1 
 function renderProjects() {
   const listEl = $("#projectList");
   if (!state.projects.length) { listEl.innerHTML = '<div class="empty-projects">还没有项目<br /><span>从左侧输入一句话开始</span></div>'; return; }
-  listEl.innerHTML = state.projects.map((project) => `<button class="project-item ${state.current?.id === project.id ? "selected" : ""}" data-project-id="${escapeHtml(project.id)}" type="button"><strong>${escapeHtml(project.idea)}${escapeHtml(versionLabel(project))}</strong><small>${statusLabel(statusOf(project))}${project.parent_id ? " · 由上一版迭代" : ""}</small></button>`).join("");
+  listEl.innerHTML = state.projects.map((project) => `<button class="project-item ${state.current?.id === project.id ? "selected" : ""}" data-project-id="${escapeHtml(project.id)}" type="button"><strong>${escapeHtml(project.idea)}${escapeHtml(versionLabel(project))}</strong><small>${statusLabel(statusOf(project), project)}${project.parent_id ? " · 由上一版迭代" : ""}</small></button>`).join("");
   listEl.querySelectorAll("[data-project-id]").forEach((button) => button.addEventListener("click", () => loadProject(button.dataset.projectId)));
 }
 
@@ -204,11 +205,15 @@ function renderBackend(project, verified) {
   const backend = projectBackend(project); const tasks = list(project.tasks);
   const checks = backend.verification || backend.tests || backend.checks || [];
   const accepted = statusOf(project) === "preview_ready";
-  const preview = project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(accepted ? "产品示例 · mock" : project.plan.preview_label || "产品示例")}</span><span>${accepted ? "示例已准备" : verified ? "等你确认" : "后端开发中"}</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || project.answers?.core_action || "查看示例")} ↗</span></div></div>` : "";
-  const title = accepted ? "产品示例已准备好" : verified ? "后端已生成，等你验收" : "正在生成后端与测试";
-  const action = accepted ? '<button class="secondary-button" id="openPreviewButton" type="button">查看示例</button><button class="primary-button" id="startTrialButton" type="button"><span>开始试用</span><span class="button-arrow">↗</span></button>' : verified ? '<button class="primary-button" id="acceptanceButton" type="button"><span>验收通过，完成首版闭环</span><span class="button-arrow">↗</span></button>' : '<button class="secondary-button" id="refreshBuildButton" type="button">刷新开发状态</button>';
+  const runtimeReady = project.preview?.status === "verified";
+  const canTrial = online || runtimeReady;
+  const previewLabel = online ? "产品示例 · mock" : runtimeReady ? "本地可运行预览" : "运行时预览待验证";
+  const previewState = online ? "示例已准备" : runtimeReady ? "运行检查通过" : "等待运行检查";
+  const preview = project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(accepted ? previewLabel : project.plan.preview_label || "产品示例")}</span><span>${escapeHtml(accepted ? previewState : verified ? "等你确认" : "后端开发中")}</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || project.answers?.core_action || "打开运行时预览")} ↗</span></div></div>` : "";
+  const title = accepted ? (runtimeReady ? "可运行预览已验证" : "先验证可运行预览") : verified ? "后端已生成，等你验收" : "正在生成后端与测试";
+  const action = accepted ? `<button class="secondary-button" id="openPreviewButton" type="button">${runtimeReady ? "打开可运行预览" : "验证并打开预览"}</button><button class="primary-button" id="startTrialButton" type="button"${canTrial ? "" : " disabled title=\"先验证可运行预览\""}><span>开始试用</span><span class="button-arrow">↗</span></button>` : verified ? '<button class="primary-button" id="acceptanceButton" type="button"><span>验收通过，完成首版闭环</span><span class="button-arrow">↗</span></button>' : '<button class="secondary-button" id="refreshBuildButton" type="button">刷新开发状态</button>';
   const newRequirementForm = accepted && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">NEW VERSION · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经验收的版本。</p><textarea id="newRequirementInput" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
-  $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">BACKEND DELIVERY · ${accepted ? "EXAMPLE" : verified ? "VERIFY" : "BUILDING"}</span><h3>${title}</h3></div><span class="phase-label">${accepted ? "已完成示例" : verified ? "待你验收" : "进行中"}</span></div><p class="panel-copy">这里展示 API、数据模型、测试和示例结果。只有实际打开并完成规定检查的成果，才会标记为已交付。</p><div class="plan-grid"><div class="plan-block"><h4>API 与数据</h4><ul>${listHtml(backend.api_contract || backend.api || ["项目状态接口", "需求与方案确认接口", "预览与验收接口"])}</ul></div><div class="plan-block"><h4>开发任务</h4><ul>${tasks.length ? tasks.map((task) => `<li>${escapeHtml(task.message || task.kind)} · ${escapeHtml(task.status || "进行中")}</li>`).join("") : listHtml(backend.tasks, ["后端任务已创建，等待状态回写"])}</ul></div><div class="plan-block"><h4>测试与恢复</h4><ul>${listHtml(checks, ["结构化 API 测试", "重启恢复待验证", "示例入口已生成"])}</ul></div><div class="plan-block"><h4>完成条件</h4><ul>${listHtml(backend.acceptance || projectIntent(project).acceptance, ["用户能打开示例", "测试结果可查看", "项目状态可恢复"])}</ul></div></div>${preview}${newRequirementForm}<div class="panel-actions">${action}</div>`;
+  $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">BACKEND DELIVERY · ${accepted ? "EXAMPLE" : verified ? "VERIFY" : "BUILDING"}</span><h3>${title}</h3></div><span class="phase-label">${accepted ? (online ? "mock 示例" : runtimeReady ? "可运行预览" : "等待预览验证") : verified ? "待你验收" : "进行中"}</span></div><p class="panel-copy">这里展示 API、数据模型、测试和运行时结果。只有实际打开并完成规定检查的成果，才会标记为可运行。</p><div class="plan-grid"><div class="plan-block"><h4>API 与数据</h4><ul>${listHtml(backend.api_contract || backend.api || ["项目状态接口", "需求与方案确认接口", "预览与验收接口"])}</ul></div><div class="plan-block"><h4>开发任务</h4><ul>${tasks.length ? tasks.map((task) => `<li>${escapeHtml(task.message || task.kind)} · ${escapeHtml(task.status || "进行中")}</li>`).join("") : listHtml(backend.tasks, ["后端任务已创建，等待状态回写"])}</ul></div><div class="plan-block"><h4>测试与恢复</h4><ul>${listHtml(checks, ["结构化 API 测试", "重启恢复待验证", "示例入口已生成"])}</ul></div><div class="plan-block"><h4>完成条件</h4><ul>${listHtml(backend.acceptance || projectIntent(project).acceptance, ["用户能打开示例", "测试结果可查看", "项目状态可恢复"])}</ul></div></div>${preview}${newRequirementForm}<div class="panel-actions">${action}</div>`;
   if (accepted) {
     $("#openPreviewButton").addEventListener("click", () => openPreview(project));
     $("#startTrialButton").addEventListener("click", () => startTrial(project));
@@ -220,16 +225,16 @@ function renderTrial(project) {
   showOnly("#previewPanel");
   const trial = project.trial || {};
   const feedback = list(trial.feedback);
-  const preview = project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(project.plan.preview_label || "产品示例")}</span><span>试用中</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || "查看示例结果")} ↗</span></div></div>` : "";
+  const preview = project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(online ? project.plan.preview_label || "产品示例" : "本地可运行预览")}</span><span>试用中</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || "打开运行时预览")} ↗</span></div></div>` : "";
   const feedbackBox = feedback.length
     ? `<div class="supplement-box"><div class="section-kicker">TRIAL FEEDBACK</div><h4>已记录试用反馈</h4><ul>${feedback.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul><p>可以继续观察，也可以基于这次反馈开启下一版。</p></div>`
     : `<div class="supplement-box"><div class="section-kicker">TRIAL FEEDBACK</div><h4>试用后记下一条真实反馈</h4><p>写下你实际使用后的结果或卡点，再决定是否开启下一版。</p><select id="trialOutcome" aria-label="试用结果"><option value="works">可以继续使用</option><option value="needs_change">需要调整</option><option value="blocked">当前无法使用</option></select><textarea id="trialFeedbackInput" placeholder="例如：核心闭环能走通，但导入入口还不够清楚"></textarea><div class="panel-actions"><button class="primary-button" id="submitTrialFeedbackButton" type="button"><span>记录试用结果</span><span class="button-arrow">↗</span></button></div></div>`;
   const iterationForm = feedback.length && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">NEW VERSION · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经试用的版本。</p><textarea id="newRequirementInput" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
-  const actions = feedback.length ? `<button class="secondary-button" id="openTrialPreviewButton" type="button">查看示例</button><button class="primary-button" id="newRequirementButton" type="button">加新需求，开启下一版</button>` : "";
+  const actions = `<button class="secondary-button" id="openTrialPreviewButton" type="button">打开可运行预览</button>${feedback.length ? '<button class="primary-button" id="newRequirementButton" type="button">加新需求，开启下一版</button>' : ""}`;
   $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">TRIAL · V${project.version || 1}</span><h3>试用这个产品示例</h3></div><span class="phase-label">记录真实反馈</span></div><p class="panel-copy">验收通过只说明交付检查完成；这里记录一次实际使用结果，再决定要不要继续迭代。</p>${preview}${feedbackBox}${iterationForm}<div class="panel-actions">${actions}</div>`;
   if (!feedback.length) $("#submitTrialFeedbackButton").addEventListener("click", () => submitTrialFeedback(project));
+  $("#openTrialPreviewButton").addEventListener("click", () => openPreview(project));
   if (feedback.length) {
-    $("#openTrialPreviewButton").addEventListener("click", () => openPreview(project));
     $("#newRequirementButton").addEventListener("click", () => { project.new_requirement_draft = true; persist(); render(); });
     if (project.new_requirement_draft) $("#createVersionButton").addEventListener("click", () => createNextVersion(project));
   }
@@ -393,10 +398,17 @@ async function submitTrialFeedback(project) {
 }
 
 async function openPreview(project) {
+  let previewWindow = null;
   try {
     if (online) { const body = document.querySelector("#previewPanel .preview-body"); if (body) body.innerHTML = `<span class="section-kicker" style="color:#2f4f3c">EXAMPLE PREVIEW · MOCK</span><h4>${escapeHtml(project.plan?.title || project.idea)}</h4><p>${escapeHtml(project.plan?.summary || "示例结果已准备；当前没有真实可访问地址")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || "查看示例结果")} ↗</span>`; return; }
-    const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/preview`); const body = document.querySelector("#previewPanel .preview-body"); if (body) body.innerHTML = `<span class="section-kicker" style="color:#2f4f3c">PREVIEW · ${escapeHtml(payload.preview.badge)}</span><h4>${escapeHtml(payload.preview.headline)}</h4><p>${escapeHtml(payload.preview.body)}</p><span class="preview-cta">${escapeHtml(payload.preview.primary_action)} ↗</span>`;
-  } catch (error) { showError(error.message); }
+    previewWindow = window.open("about:blank", "_blank");
+    const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/preview/verify`, { method: "POST" });
+    replaceProject(payload.project); render();
+    if (payload.preview?.url) {
+      if (previewWindow) previewWindow.location.href = payload.preview.url;
+      else window.location.href = payload.preview.url;
+    } else if (previewWindow) previewWindow.close();
+  } catch (error) { if (previewWindow) previewWindow.close(); showError(error.message); }
 }
 
 function mockQuestions(idea, round, answers = {}, changeRequest = "") {

@@ -17,4 +17,4 @@ backend/start.sh
 PYTHONPATH=backend backend/.venv/bin/pytest -q backend/tests
 node --check dist/app.js
 
-未配置 MODEL_API_KEY 时，真实模型按钮会保持禁用；本地结构化方案和 mock 示例仍可完整走通。后端预览返回的是结构化示例内容，不代表已部署的公开地址；`trial` 反馈也只代表本地记录，不代表真实用户试用或质量验收。
+未配置 MODEL_API_KEY 时，真实模型按钮会保持禁用；本地结构化方案和 mock 示例仍可完整走通。本地 API 的验收页会生成 `/runtime/{project_id}/` 运行时地址，必须通过页面、健康检查和核心动作验证后才显示为可运行预览；它仍不是公网部署。`trial` 反馈也只代表本地记录，不代表真实用户试用或质量验收。

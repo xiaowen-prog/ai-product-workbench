@@ -32,6 +32,19 @@ def test_project_flow_persists_and_creates_iteration(tmp_path: Path):
     assert response.json()["project"]["status"] == "backend_verified"
     response = client.post(f"/api/v1/projects/{project['id']}/acceptance", json={"passed": True})
     assert response.json()["project"]["status"] == "preview_ready"
+    runtime = client.get(f"/api/v1/projects/{project['id']}/preview")
+    assert runtime.status_code == 200
+    preview = runtime.json()["preview"]
+    assert preview["kind"] == "runtime"
+    assert client.get(preview["url"].replace("http://testserver", "")).status_code == 200
+    assert client.get(preview["health_url"].replace("http://testserver", "")).json()["status"] == "ok"
+    action = client.post(preview["action_url"].replace("http://testserver", ""), json={"input": "客户需要报价单\n两周交付"})
+    assert action.status_code == 200
+    assert action.json()["result"]["deliverables"]
+    verified = client.post(f"/api/v1/projects/{project['id']}/preview/verify")
+    assert verified.status_code == 200
+    assert verified.json()["preview"]["status"] == "verified"
+    assert {check["status"] for check in verified.json()["preview"]["checks"]} == {"passed"}
 
     trial = client.post(f"/api/v1/projects/{project['id']}/trial")
     assert trial.status_code == 200

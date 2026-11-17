@@ -274,6 +274,8 @@ def start_trial(store: Store, project_id: str) -> Project:
         raise KeyError(project_id)
     if project.status != ProjectStatus.PREVIEW_READY:
         raise ValueError("只有验收完成的版本才能开始试用")
+    if project.preview is None or project.preview.status != "verified":
+        raise ValueError("请先验证可运行预览，再开始试用")
     timestamp = now()
     project.trial = Trial(started_at=timestamp, updated_at=timestamp)
     transition(project, ProjectStatus.TRIAL, actor="user", pending=["trial_feedback"])

@@ -17,4 +17,4 @@ backend/start.sh
 PYTHONPATH=backend backend/.venv/bin/pytest -q backend/tests
 node --check dist/app.js
 
-真实模型只从 backend/.env 或进程环境读取 MODEL_API_KEY；未配置时，前端会禁用真实模型按钮。
+真实模型只从 backend/.env 或进程环境读取 MODEL_API_KEY；未配置时，前端会禁用真实模型按钮。验收后，`GET /api/v1/projects/{id}/preview` 返回同源 `/runtime/{id}/` 地址；`POST /api/v1/projects/{id}/preview/verify` 会检查运行时页面、健康检查和核心动作，验证通过后才能开始试用。运行时页面的输入动作由本地规则引擎执行，不代表公网部署或真实模型调用。

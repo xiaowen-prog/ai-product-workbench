@@ -5,13 +5,39 @@
   "target": "index.html",
   "mode": "default localStorage mock; ?mode=local uses same-origin FastAPI JSON API with API Key gate; ?mode=offline-demo is standalone mock",
   "visual_direction": "A · 浅色纸张",
-  "state_machine": ["idea", "needs_discovery", "needs_intent_confirmation", "needs_plan_confirmation", "backend_building", "backend_verified", "preview_ready", "trial", "v2_needs_discovery"],
+  "state_machine": [
+    "idea",
+    "needs_discovery",
+    "needs_intent_confirmation",
+    "needs_plan_confirmation",
+    "backend_building",
+    "backend_verified",
+    "preview_ready",
+    "runtime_verified",
+    "trial",
+    "v2_needs_discovery"
+  ],
   "responsive_checks": [
-    {"viewport":"320x800","horizontal_overflow":false},
-    {"viewport":"390x844","horizontal_overflow":false},
-    {"viewport":"430x932","horizontal_overflow":false},
-    {"viewport":"812x375","horizontal_overflow":false},
-    {"viewport":"1280x900","horizontal_overflow":false}
+    {
+      "viewport": "320x800",
+      "horizontal_overflow": false
+    },
+    {
+      "viewport": "390x844",
+      "horizontal_overflow": false
+    },
+    {
+      "viewport": "430x932",
+      "horizontal_overflow": false
+    },
+    {
+      "viewport": "812x375",
+      "horizontal_overflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "horizontal_overflow": false
+    }
   ],
   "claims_boundary": {
     "mock": true,
@@ -24,17 +50,22 @@
     "offline_demo_available_without_api_key": true,
     "local_api_tests_passed": true,
     "restart_recovery_tested": true,
-    "structured_preview_is_not_public_url": true,
     "v2_starts_with_affected_area_question": true,
     "v2_real_model_smoke_verified": true,
     "trial_requires_feedback_before_iteration": true,
-    "trial_feedback_is_persisted": true
+    "trial_feedback_is_persisted": true,
+    "local_runtime_preview_available": true,
+    "local_runtime_url_verified": true,
+    "local_runtime_health_verified": true,
+    "local_runtime_core_action_verified": true,
+    "local_runtime_is_not_public_deployment": true
   },
   "review_questions": [
     "视觉调性是否符合少干扰、单任务工作台",
     "首屏是否清楚表达当前任务和下一步",
     "需求、方案、开发、验收和试用阶段是否被清楚区分",
     "方案修改、试用反馈和 V2 是否保持正确的状态机",
+    "运行时 URL、健康检查和核心动作是否都通过后才标记为可运行预览",
     "移动端是否能完成主流程",
     "进入项目后是否只突出当前任务",
     "需求确认是否提供自由补充入口",
