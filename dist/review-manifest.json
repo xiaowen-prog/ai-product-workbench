@@ -15,7 +15,8 @@
   ],
   "claims_boundary": {
     "mock": true,
-    "real_model_verified": false,
+    "real_model_verified": true,
+    "real_model_evidence": "真实模型冒烟记录-2026-11-17.md",
     "backend_production_deployed": false,
     "public_release_verified": false,
     "real_model_button_disabled_when_unconfigured": true,
