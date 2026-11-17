@@ -25,7 +25,8 @@
     "local_api_tests_passed": true,
     "restart_recovery_tested": true,
     "structured_preview_is_not_public_url": true,
-    "v2_starts_with_affected_area_question": true
+    "v2_starts_with_affected_area_question": true,
+    "v2_real_model_smoke_verified": true
   },
   "review_questions": [
     "视觉调性是否符合少干扰、单任务工作台",
