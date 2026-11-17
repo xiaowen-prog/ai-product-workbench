@@ -60,7 +60,7 @@ h2 { margin: 9px 0 0; font-size: 23px; letter-spacing: -.03em; }
 .idea-card label { display: block; margin-bottom: 13px; color: #4d554e; font-size: 13px; font-weight: 650; }
 textarea { display: block; width: 100%; min-height: 148px; resize: vertical; border: 0; outline: 0; padding: 0; color: var(--ink); background: transparent; font: inherit; font-size: 20px; line-height: 1.5; letter-spacing: -.025em; }
 textarea::placeholder { color: #9a9c94; }
-textarea:focus, input:focus { outline: 3px solid rgba(70,111,83,.22); outline-offset: 3px; }
+textarea:focus, input:focus, select:focus { outline: 3px solid rgba(70,111,83,.22); outline-offset: 3px; }
 button:focus-visible { outline: 3px solid rgba(70,111,83,.28); outline-offset: 3px; }
 .form-bottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 18px; border-top: 1px solid var(--line); }
 .form-actions { display: flex; align-items: center; gap: 9px; }

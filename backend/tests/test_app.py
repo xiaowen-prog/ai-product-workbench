@@ -94,6 +94,9 @@ def test_compatibility_routes_keep_user_in_confirmation_stages(client: TestClien
     rejected_plan = client.post(f"/api/v1/projects/{project['id']}/confirm-plan", json={"confirmed": False}).json()["project"]
     assert rejected_plan["status"] == "needs_plan_confirmation"
     assert rejected_plan["plan_revision"]["status"] == "needs_input"
+    compat_revision = client.post(f"/api/v1/projects/{project['id']}/answers", json={"answers": {"plan_correction": "先做网页，不做登录"}})
+    assert compat_revision.status_code == 200
+    assert compat_revision.json()["project"]["plan_revision"]["status"] == "applied"
     modified = client.post(f"/api/v1/projects/{project['id']}/modify-plan", json={"note": "先做网页，不做登录"})
     assert modified.status_code == 200
     assert "先做网页" in modified.json()["project"]["plan"]["summary"]

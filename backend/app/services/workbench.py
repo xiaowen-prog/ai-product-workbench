@@ -321,7 +321,10 @@ def answer_project(store: Store, project_id: str, answers: AnswerRequest) -> Pro
     project = store.get_project(project_id)
     if project is None:
         raise KeyError(project_id)
-    if project.status not in {ProjectStatus.NEEDS_DISCOVERY, ProjectStatus.NEEDS_CLARIFICATION}:
+    if "plan_correction" in answers.answers:
+        if project.status != ProjectStatus.NEEDS_PLAN_CONFIRMATION or project.plan is None:
+            raise ValueError("当前不在方案确认阶段")
+    elif project.status not in {ProjectStatus.NEEDS_DISCOVERY, ProjectStatus.NEEDS_CLARIFICATION}:
         raise ValueError("当前不在需求发现阶段")
     _validate_answers(project, answers)
     project.answers.update(answers.answers)
@@ -336,6 +339,7 @@ def answer_project(store: Store, project_id: str, answers: AnswerRequest) -> Pro
         if project.plan is not None:
             correction = answers.answers["plan_correction"]
             project.plan.summary = f"{project.plan.summary}（用户补充调整：{correction}）"
+            project.plan_revision = {"status": "applied", "note": correction, "applied_at": now()}
         project.questions = []
         transition(project, ProjectStatus.NEEDS_PLAN_CONFIRMATION, evidence=[correction])
         project.updated_at = now()

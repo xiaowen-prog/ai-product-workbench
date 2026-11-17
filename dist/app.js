@@ -1,4 +1,4 @@
-const state = { projects: [], current: null, model: null, creating: false, helpOpen: false };
+const state = { projects: [], current: null, model: null, modelUnavailable: false, creating: false, helpOpen: false };
 const online = Boolean(window.__ONLINE_PREVIEW__);
 const offlineDemo = new URLSearchParams(window.location.search).get("mode") === "offline-demo";
 const $ = (selector) => document.querySelector(selector);
@@ -80,6 +80,14 @@ function renderStartGate() {
     if (span) span.textContent = "检查配置中";
     return;
   }
+  if (state.modelUnavailable) {
+    gate.classList.remove("hidden");
+    gate.innerHTML = '<strong>无法连接本地 API</strong><span>请先启动 backend/start.sh，再重新检查配置。API Key 状态暂时无法读取。</span><div class="setup-actions"><button id="refreshModelButton" class="secondary-button" type="button">重新检查配置</button></div>';
+    start.disabled = true;
+    if (span) span.textContent = "等待本地 API";
+    $("#refreshModelButton")?.addEventListener("click", async () => { await loadModelStatus(); render(); });
+    return;
+  }
   if (!canStartBuild()) {
     gate.classList.remove("hidden");
     gate.innerHTML = '<strong>API Key 尚未配置</strong><span>按上方指引完成配置并重启后端，再重新检查。</span><div class="setup-actions"><button id="showConfigExampleButton" class="secondary-button" type="button">查看配置示例</button><button id="refreshModelButton" class="secondary-button" type="button">重新检查配置</button></div><pre id="configExample" class="config-example hidden">MODEL_API_KEY=你的服务端密钥\nMODEL_BASE_URL=https://api.deepseek.com/v1\nMODEL_NAME=deepseek-chat\nAI_WORKBENCH_REQUIRE_MODEL=true</pre>';
@@ -103,12 +111,16 @@ function renderWelcomeGuide() {
   const helpOpen = state.helpOpen === true;
   if (state.creating || (!helpOpen && (state.current || seen))) { guide.classList.add("hidden"); return; }
   const intro = !online
-    ? "这是本地 API 模式：先配置服务，再开始真实搭建。没有 Key 也可以单独查看离线示例。"
+    ? state.modelUnavailable
+      ? "这是本地 API 模式：先启动 backend/start.sh，工作台才能读取 API Key 状态。没有 Key 也可以单独查看离线示例。"
+      : state.model?.configured
+        ? "AI 服务已经配置好，可以直接开始真实搭建；Key 只保存在后端，不会进入浏览器。"
+        : "这是本地 API 模式：先配置服务，再开始真实搭建。没有 Key 也可以单独查看离线示例。"
     : offlineDemo
       ? "这是独立离线示例，不需要 API Key；输入一句话就可以体验完整流程。"
       : "这是浏览器里的离线 mock，用来先看流程和界面，不会调用真实模型。";
-  const firstStep = !online ? "在 backend/.env 配置 MODEL_API_KEY" : "输入一句话描述想做的产品";
-  const secondStep = !online ? "输入一句话描述想做的产品" : "回答会改变方向的问题";
+  const firstStep = !online ? (state.modelUnavailable ? "启动 backend/start.sh 并重新检查" : state.model?.configured ? "输入一句话描述想做的产品" : "在 backend/.env 配置 MODEL_API_KEY") : "输入一句话描述想做的产品";
+  const secondStep = !online && !state.model?.configured ? "输入一句话描述想做的产品" : "回答会改变方向的问题";
   const thirdStep = !online ? "确认需求和方案后再验收" : "确认后查看示例并继续修改";
   guide.classList.remove("hidden");
   guide.innerHTML = `<div class="welcome-head"><span class="section-kicker">${helpOpen ? "HOW IT WORKS" : "FIRST VISIT"}</span><button id="dismissWelcomeGuide" class="guide-dismiss" type="button">${helpOpen ? "关闭说明" : "知道了"}</button></div><h3>${helpOpen ? "这套工作台怎么用？" : "第一次使用，先看这 3 步"}</h3><p>${intro}</p><ol class="welcome-steps"><li>${escapeHtml(firstStep)}</li><li>${escapeHtml(secondStep)}</li><li>${escapeHtml(thirdStep)}</li></ol>`;
@@ -176,7 +188,7 @@ function renderRequirements(project) {
   showOnly("#questionPanel");
   const intent = projectIntent(project); const discovery = projectDiscovery(project);
   const supplement = project.requirement_supplement?.status === "needs_input";
-  const supplementBox = supplement ? `<div class="supplement-box"><div class="section-kicker">ADD CONTEXT</div><h4>补充一条会改变判断的信息</h4><p>可以补充事实、约束或必须纳入的用户场景；提交后仍停留在需求确认。</p><textarea id="supplementInput" placeholder="例如：已有 5 次访谈都提到需要导入原始记录"></textarea><div class="panel-actions"><button class="secondary-button" id="skipSupplementButton" type="button">无需补充</button><button class="primary-button" id="submitSupplementButton" type="button"><span>提交补充</span><span class="button-arrow">↗</span></button></div></div>` : "";
+  const supplementBox = supplement ? `<div class="supplement-box"><div class="section-kicker">ADD CONTEXT</div><h4>补充一条会改变判断的信息</h4><p>可以补充事实、约束或必须纳入的用户场景；提交后仍停留在需求确认。</p><textarea id="supplementInput" aria-label="补充需求信息" placeholder="例如：已有 5 次访谈都提到需要导入原始记录"></textarea><div class="panel-actions"><button class="secondary-button" id="skipSupplementButton" type="button">无需补充</button><button class="primary-button" id="submitSupplementButton" type="button"><span>提交补充</span><span class="button-arrow">↗</span></button></div></div>` : "";
   $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">REQUIREMENT CONFIRMATION</span><h3>先确认需求判断</h3></div><span class="phase-label">待你确认</span></div><p class="panel-copy">这不是长篇 PRD。请确认下面的用户、问题、证据和风险是否准确；确认后才会进入方案设计。</p><div class="plan-grid"><div class="plan-block"><h4>用户与目标</h4><p>${escapeHtml(intent.target_user || discovery.target_user || "待确认")}<br />${escapeHtml(intent.goal || discovery.problem || "待确认")}</p></div><div class="plan-block"><h4>证据与假设</h4><ul>${listHtml(discovery.evidence || discovery.facts, ["当前暂无外部证据，先按假设记录"])}</ul></div><div class="plan-block"><h4>核心结果</h4><p>${escapeHtml(intent.core_loop || discovery.desired_outcome || "待确认")}</p></div><div class="plan-block"><h4>红灯与待验证</h4><ul>${listHtml(discovery.red_flags || discovery.open_questions, ["暂无红灯；真实用户验证仍待完成"])}</ul></div></div>${supplementBox}<div class="panel-actions"><button class="secondary-button" id="continueDiscoveryButton" type="button">我还要补充</button><button class="primary-button" id="confirmIntentButton" type="button"><span>确认需求，进入方案</span><span class="button-arrow">↗</span></button></div>`;
   $("#continueDiscoveryButton").addEventListener("click", () => { project.requirement_supplement = { status: "needs_input", prompt: "补充一条会改变判断的信息" }; persist(); render(); });
   if (supplement) {
@@ -220,7 +232,7 @@ function renderBackend(project, verified) {
   const preview = project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(accepted ? previewLabel : project.plan.preview_label || "产品示例")}</span><span>${escapeHtml(accepted ? previewState : verified ? "等你确认" : "后端开发中")}</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || project.answers?.core_action || "打开运行时预览")} ↗</span></div></div>` : "";
   const title = accepted ? (runtimeReady ? "可运行预览已验证" : "先验证可运行预览") : verified ? "后端已生成，等你验收" : "正在生成后端与测试";
   const action = accepted ? `<button class="secondary-button" id="openPreviewButton" type="button">${runtimeReady ? "打开可运行预览" : "验证并打开预览"}</button><button class="primary-button" id="startTrialButton" type="button"${canTrial ? "" : " disabled title=\"先验证可运行预览\""}><span>开始试用</span><span class="button-arrow">↗</span></button>` : verified ? '<button class="primary-button" id="acceptanceButton" type="button"><span>验收通过，完成首版闭环</span><span class="button-arrow">↗</span></button>' : '<button class="secondary-button" id="refreshBuildButton" type="button">刷新开发状态</button>';
-  const newRequirementForm = accepted && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">NEW VERSION · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经验收的版本。</p><textarea id="newRequirementInput" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
+  const newRequirementForm = accepted && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">NEW VERSION · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经验收的版本。</p><textarea id="newRequirementInput" aria-label="下一版需求" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
   $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">BACKEND DELIVERY · ${accepted ? "EXAMPLE" : verified ? "VERIFY" : "BUILDING"}</span><h3>${title}</h3></div><span class="phase-label">${accepted ? (online ? "mock 示例" : runtimeReady ? "可运行预览" : "等待预览验证") : verified ? "待你验收" : "进行中"}</span></div><p class="panel-copy">这里展示 API、数据模型、测试和运行时结果。只有实际打开并完成规定检查的成果，才会标记为可运行。</p><div class="plan-grid"><div class="plan-block"><h4>API 与数据</h4><ul>${listHtml(backend.api_contract || backend.api || ["项目状态接口", "需求与方案确认接口", "预览与验收接口"])}</ul></div><div class="plan-block"><h4>开发任务</h4><ul>${tasks.length ? tasks.map((task) => `<li>${escapeHtml(task.message || task.kind)} · ${escapeHtml(task.status || "进行中")}</li>`).join("") : listHtml(backend.tasks, ["后端任务已创建，等待状态回写"])}</ul></div><div class="plan-block"><h4>测试与恢复</h4><ul>${listHtml(checks, ["结构化 API 测试", "重启恢复待验证", "示例入口已生成"])}</ul></div><div class="plan-block"><h4>完成条件</h4><ul>${listHtml(backend.acceptance || projectIntent(project).acceptance, ["用户能打开示例", "测试结果可查看", "项目状态可恢复"])}</ul></div></div>${preview}${newRequirementForm}<div class="panel-actions">${action}</div>`;
   if (accepted) {
     $("#openPreviewButton").addEventListener("click", () => openPreview(project));
@@ -236,8 +248,8 @@ function renderTrial(project) {
   const preview = project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(online ? project.plan.preview_label || "产品示例" : "本地可运行预览")}</span><span>试用中</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || "打开运行时预览")} ↗</span></div></div>` : "";
   const feedbackBox = feedback.length
     ? `<div class="supplement-box"><div class="section-kicker">TRIAL FEEDBACK</div><h4>已记录试用反馈</h4><ul>${feedback.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul><p>可以继续观察，也可以基于这次反馈开启下一版。</p></div>`
-    : `<div class="supplement-box"><div class="section-kicker">TRIAL FEEDBACK</div><h4>试用后记下一条真实反馈</h4><p>写下你实际使用后的结果或卡点，再决定是否开启下一版。</p><select id="trialOutcome" aria-label="试用结果"><option value="works">可以继续使用</option><option value="needs_change">需要调整</option><option value="blocked">当前无法使用</option></select><textarea id="trialFeedbackInput" placeholder="例如：核心闭环能走通，但导入入口还不够清楚"></textarea><div class="panel-actions"><button class="primary-button" id="submitTrialFeedbackButton" type="button"><span>记录试用结果</span><span class="button-arrow">↗</span></button></div></div>`;
-  const iterationForm = feedback.length && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">NEW VERSION · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经试用的版本。</p><textarea id="newRequirementInput" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
+    : `<div class="supplement-box"><div class="section-kicker">TRIAL FEEDBACK</div><h4>试用后记下一条真实反馈</h4><p>写下你实际使用后的结果或卡点，再决定是否开启下一版。</p><select id="trialOutcome" aria-label="试用结果"><option value="works">可以继续使用</option><option value="needs_change">需要调整</option><option value="blocked">当前无法使用</option></select><textarea id="trialFeedbackInput" aria-label="试用反馈" placeholder="例如：核心闭环能走通，但导入入口还不够清楚"></textarea><div class="panel-actions"><button class="primary-button" id="submitTrialFeedbackButton" type="button"><span>记录试用结果</span><span class="button-arrow">↗</span></button></div></div>`;
+  const iterationForm = feedback.length && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">NEW VERSION · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经试用的版本。</p><textarea id="newRequirementInput" aria-label="下一版需求" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
   const actions = `<button class="secondary-button" id="openTrialPreviewButton" type="button">打开可运行预览</button>${feedback.length ? '<button class="primary-button" id="newRequirementButton" type="button">加新需求，开启下一版</button>' : ""}`;
   $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">TRIAL · V${project.version || 1}</span><h3>试用这个产品示例</h3></div><span class="phase-label">记录真实反馈</span></div><p class="panel-copy">验收通过只说明交付检查完成；这里记录一次实际使用结果，再决定要不要继续迭代。</p>${preview}${feedbackBox}${iterationForm}<div class="panel-actions">${actions}</div>`;
   if (!feedback.length) $("#submitTrialFeedbackButton").addEventListener("click", () => submitTrialFeedback(project));
@@ -264,10 +276,10 @@ async function postCandidates(projectId, paths, body) {
   throw lastError || new Error("接口暂未接入");
 }
 async function loadModelStatus() {
-  if (online) { state.model = { configured: false, required: false, can_build: true, model: "offline-mock" }; renderStartGate(); return; }
-  try { state.model = await api("/api/v1/model/status"); }
-  catch (_) { state.model = { configured: false, required: true, can_build: false }; }
-  renderStartGate();
+  if (online) { state.model = { configured: false, required: false, can_build: true, model: "offline-mock" }; state.modelUnavailable = false; renderStartGate(); renderWelcomeGuide(); return; }
+  try { state.model = await api("/api/v1/model/status"); state.modelUnavailable = false; }
+  catch (_) { state.model = { configured: false, required: true, can_build: false }; state.modelUnavailable = true; }
+  renderStartGate(); renderWelcomeGuide();
 }
 async function loadProjects() {
   try {
@@ -286,7 +298,7 @@ async function loadProject(projectId) {
 }
 async function createProject(event) {
   event.preventDefault(); const idea = $("#idea").value.trim(); if (idea.length < 3) { showError("先用一句话说清楚你想做什么"); return; }
-  if (!canStartBuild()) { showError("开始搭建前，请先配置 backend/.env 里的 MODEL_API_KEY"); renderStartGate(); return; }
+  if (!canStartBuild()) { showError(state.modelUnavailable ? "开始搭建前，请先启动 backend/start.sh 并重新检查" : "开始搭建前，请先配置 backend/.env 里的 MODEL_API_KEY"); renderStartGate(); return; }
   const button = $("#startBuildButton"); button.disabled = true; clearError();
   try {
     if (online) {
