@@ -57,17 +57,20 @@ def _question_catalog(idea: str) -> dict[str, Question]:
         "desired_outcome": Question(id="desired_outcome", text="用户完成一次使用后，最希望得到什么结果？", hint="用结果描述，例如：得到一份可直接使用的报价"),
         "current_workaround": Question(id="current_workaround", text="用户现在用什么办法解决？为什么还不够好？", hint="没有现成办法可以填：目前没有"),
         "constraints": Question(id="constraints", text="有没有必须遵守的范围、数据或发布限制？", hint="没有可以填：暂时没有"),
+        "affected_area": Question(id="affected_area", text="这次新增会改变原产品的哪一段？", hint="例如：只影响预览，不改变需求确认", reason="只重算受影响链路"),
         "intent_correction": Question(id="intent_correction", text="刚才的需求摘要哪里不准确？请直接说要改成什么。", hint="例如：目标用户不是个人，而是小团队"),
         "plan_correction": Question(id="plan_correction", text="方案哪里需要调整？请说最重要的一处变化。", hint="例如：先做网页，不做登录"),
     }
 
 
-def _questions(idea: str, answers: dict[str, str] | None = None) -> list[Question]:
+def _questions(idea: str, answers: dict[str, str] | None = None, change_request: str = "") -> list[Question]:
     answers = answers or {}
     catalog = _question_catalog(idea)
     # 每轮只呈现当前缺口：首轮最多三个，后续轮次按剩余缺口缩短；总轮数不固定。
     required = ("target_user", "problem", "desired_outcome", "current_workaround")
     missing = [key for key in required if not answers.get(key)]
+    if change_request and not answers.get("affected_area"):
+        missing.insert(0, "affected_area")
     if not missing and any(word in idea for word in ("支付", "医疗", "健康", "儿童", "隐私", "数据")) and not answers.get("constraints"):
         missing = ["constraints"]
     limit = min(3, len(missing))
@@ -244,7 +247,7 @@ def create_iteration(store: Store, project_id: str, change_request: str) -> Proj
         change_request=cleaned,
         status=ProjectStatus.NEEDS_DISCOVERY,
         answers={"change_request": cleaned},
-        questions=_questions(parent.idea, {"change_request": cleaned}),
+        questions=_questions(parent.idea, {"change_request": cleaned}, change_request=cleaned),
         created_at=timestamp,
         updated_at=timestamp,
     )
@@ -292,7 +295,7 @@ def answer_project(store: Store, project_id: str, answers: AnswerRequest) -> Pro
         project.updated_at = now()
         return store.upsert_project(project)
     project.discovery_round += 1
-    project.questions = _questions(project.idea, project.answers)
+    project.questions = _questions(project.idea, project.answers, project.change_request)
     project.evidence = _discovery(project).evidence
     if project.questions:
         transition(project, ProjectStatus.NEEDS_DISCOVERY, pending=[question.id for question in project.questions])

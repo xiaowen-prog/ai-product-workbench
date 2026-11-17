@@ -39,6 +39,7 @@ def test_project_flow_persists_and_creates_iteration(tmp_path: Path):
     assert next_project["version"] == 2
     assert next_project["parent_id"] == project["id"]
     assert next_project["status"] == "needs_discovery"
+    assert next_project["questions"][0]["id"] == "affected_area"
     assert data.exists()
     assert json.loads(data.read_text(encoding="utf-8"))["projects"][0]["id"] == next_project["id"]
 
