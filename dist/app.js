@@ -115,6 +115,10 @@ function list(value, fallback = []) { return Array.isArray(value) && value.lengt
 function displayItem(item) { return item && typeof item === "object" ? (item.text || item.message || item.kind || JSON.stringify(item)) : item; }
 function listHtml(value, fallback = ["待补充"]) { return list(value, fallback).map((item) => `<li>${escapeHtml(displayItem(item))}</li>`).join(""); }
 function now() { return new Date().toISOString(); }
+function replaceProject(project) {
+  state.current = project;
+  state.projects = [project, ...state.projects.filter((item) => item.id !== project.id)];
+}
 function transition(project, nextStatus, meta = {}) {
   const from = statusOf(project);
   project.events = Array.isArray(project.events) ? project.events : [];
@@ -181,7 +185,7 @@ function renderPlanConfirmation(project) {
     $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">PLAN REVISION</span><h3>告诉我方案哪里要改</h3></div><span class="phase-label">仍在方案确认</span></div><p class="panel-copy">这里只修改方案，不会把你拉回需求发现，也不会重新回答旧问题。</p><div class="question-list"><div class="question-card"><label for="answer-plan-correction">${escapeHtml(correction.prompt || "方案需要调整哪一处？")}</label><input id="answer-plan-correction" placeholder="用自己的话描述修改" autocomplete="off" /></div></div><div class="panel-actions"><button class="primary-button" id="planCorrectionButton" type="button"><span>更新方案</span><span class="button-arrow">↗</span></button></div>`;
     $("#planCorrectionButton").addEventListener("click", async () => {
       const value = $("#answer-plan-correction").value.trim(); if (!value) { showError("先说清楚要改哪一处"); return; }
-      try { if (online) { project.plan.summary = `${project.plan.summary}（用户补充调整：${value}）`; project.plan_revision = { status: "applied", note: value, applied_at: now() }; project.events = Array.isArray(project.events) ? project.events : []; project.events.push({ id: `evt_${Date.now()}_${project.events.length}`, from: "plan_draft", to: "plan_draft", actor: "user", input_version: project.version || 1, output_version: project.version || 1, evidence: [value], pending: [], at: now() }); persist(); } else { const payload = await postCandidates(project.id, ["/modify-plan", "/plan/modify"], { note: value }); state.current = payload.project; } render(); }
+      try { if (online) { project.plan.summary = `${project.plan.summary}（用户补充调整：${value}）`; project.plan_revision = { status: "applied", note: value, applied_at: now() }; project.events = Array.isArray(project.events) ? project.events : []; project.events.push({ id: `evt_${Date.now()}_${project.events.length}`, from: "plan_draft", to: "plan_draft", actor: "user", input_version: project.version || 1, output_version: project.version || 1, evidence: [value], pending: [], at: now() }); persist(); } else { const payload = await postCandidates(project.id, ["/modify-plan", "/plan/modify"], { note: value }); replaceProject(payload.project); } render(); }
       catch (error) { showError(error.message); }
     });
     return;
@@ -264,7 +268,7 @@ async function loadProject(projectId) {
   try {
     state.creating = false;
     if (online) { state.current = state.projects.find((project) => project.id === projectId) || null; render(); return; }
-    const payload = await api(`/api/v1/projects/${encodeURIComponent(projectId)}`); state.current = payload.project; localStorage.setItem("ai-workbench-project", projectId); render();
+    const payload = await api(`/api/v1/projects/${encodeURIComponent(projectId)}`); replaceProject(payload.project); localStorage.setItem("ai-workbench-project", projectId); render();
   } catch (error) { showError(error.message); }
 }
 async function createProject(event) {
@@ -296,13 +300,13 @@ async function submitAnswers() {
       else { state.current.discovery = mockDiscovery(state.current); state.current.intent = mockIntent(state.current); transition(state.current, "needs_intent_confirmation", { evidence: Object.entries(answers).map(([id, value]) => `${id}: ${value}`) }); }
       persist();
     }
-    else { const payload = await api(`/api/v1/projects/${encodeURIComponent(state.current.id)}/answers`, { method: "POST", body: JSON.stringify({ answers }) }); state.current = payload.project; state.projects = [state.current, ...state.projects.filter((project) => project.id !== state.current.id)]; }
+    else { const payload = await api(`/api/v1/projects/${encodeURIComponent(state.current.id)}/answers`, { method: "POST", body: JSON.stringify({ answers }) }); replaceProject(payload.project); }
     render();
   } catch (error) { showError(error.message); button.disabled = false; }
 }
 async function continueDiscovery(project) {
   if (online) { project.round = Number(project.round || 0) + 1; project.questions = mockQuestions(project.idea, project.round, project.answers || {}); transition(project, "needs_discovery", { pending: project.questions.map((question) => question.id) }); persist(); render(); return; }
-  try { const payload = await postCandidates(project.id, ["/confirm-intent"], { confirmed: false, note: "需要补充或修正需求" }); state.current = payload.project; render(); }
+  try { const payload = await postCandidates(project.id, ["/confirm-intent"], { confirmed: false, note: "需要补充或修正需求" }); replaceProject(payload.project); render(); }
   catch (error) { showError(error.message); }
 }
 function submitSupplement(project) {
@@ -318,26 +322,26 @@ function submitSupplement(project) {
     project.events.push({ id: `evt_${Date.now()}_${project.events.length}`, from: "needs_intent_confirmation", to: "needs_intent_confirmation", actor: "user", input_version: project.version || 1, output_version: project.version || 1, evidence: [value], pending: [], at: now() });
     persist(); render(); return;
   }
-  api(`/api/v1/projects/${encodeURIComponent(project.id)}/supplement`, { method: "POST", body: JSON.stringify({ text: value }) }).then((payload) => { state.current = payload.project; render(); }).catch((error) => showError(error.message));
+  api(`/api/v1/projects/${encodeURIComponent(project.id)}/supplement`, { method: "POST", body: JSON.stringify({ text: value }) }).then((payload) => { replaceProject(payload.project); render(); }).catch((error) => showError(error.message));
 }
 async function confirmIntent(project) {
   clearError();
   try {
     if (online) { project.plan = mockPlan(project); transition(project, "needs_plan_confirmation", { pending: project.plan.open_questions || [] }); persist(); }
-    else { const payload = await postCandidates(project.id, ["/confirm-intent", "/requirements/confirm"], { confirmed: true }); state.current = payload.project; }
+    else { const payload = await postCandidates(project.id, ["/confirm-intent", "/requirements/confirm"], { confirmed: true }); replaceProject(payload.project); }
     render();
   } catch (error) { showError(error.message); }
 }
 async function generateRealPlan() {
   const button = $("#realPlanButton"); button.disabled = true; clearError();
-  try { const payload = online ? null : await api(`/api/v1/projects/${encodeURIComponent(state.current.id)}/real-plan`, { method: "POST", body: JSON.stringify({ answers: currentAnswers() }) }); if (payload) state.current = payload.project; render(); }
+  try { const payload = online ? null : await api(`/api/v1/projects/${encodeURIComponent(state.current.id)}/real-plan`, { method: "POST", body: JSON.stringify({ answers: currentAnswers() }) }); if (payload) replaceProject(payload.project); render(); }
   catch (error) { showError(`${error.message}。真实模型失败不会覆盖当前方案。`); button.disabled = false; }
 }
 async function confirmPlan(project, confirmed = true) {
   clearError();
   try {
     if (online) { if (confirmed) { project.backend = mockBackend(project); transition(project, "backend_verified", { pending: project.backend.tests || [] }); } else { project.plan_revision = { status: "needs_input", prompt: "方案需要调整哪一处？", requested_at: now() }; transition(project, "needs_plan_confirmation", { pending: ["plan_revision"] }); } persist(); }
-    else { const payload = await postCandidates(project.id, ["/confirm-plan", "/plan/confirm"], { confirmed }); state.current = payload.project; }
+    else { const payload = await postCandidates(project.id, ["/confirm-plan", "/plan/confirm"], { confirmed }); replaceProject(payload.project); }
     render();
   } catch (error) { showError(error.message); }
 }
@@ -355,7 +359,7 @@ async function createNextVersion(project) {
       state.current = next; state.projects = [next, ...state.projects]; persist(); render();
     } else {
       const payload = await postCandidates(project.id, ["/iterations", "/new-requirement"], { change_request: change });
-      state.current = payload.project; state.projects = [state.current, ...state.projects.filter((item) => item.id !== state.current.id)]; render();
+      replaceProject(payload.project); render();
     }
   } catch (error) { showError(error.message); if (button) button.disabled = false; }
 }
@@ -363,7 +367,7 @@ async function acceptBuild(project) {
   clearError();
   try {
     if (online) { project.accepted = true; transition(project, "preview_ready", { pending: [] }); persist(); }
-    else { const payload = await postCandidates(project.id, ["/acceptance", "/verify"], { passed: true }); state.current = payload.project; }
+    else { const payload = await postCandidates(project.id, ["/acceptance", "/verify"], { passed: true }); replaceProject(payload.project); }
     render();
   } catch (error) { showError(error.message); }
 }
@@ -372,7 +376,7 @@ async function startTrial(project) {
   clearError();
   try {
     if (online) { project.trial = { status: "active", outcome: "", feedback: [], started_at: now(), updated_at: now() }; transition(project, "trial", { pending: ["trial_feedback"] }); persist(); }
-    else { const payload = await postCandidates(project.id, ["/trial", "/trial/start"], {}); state.current = payload.project; }
+    else { const payload = await postCandidates(project.id, ["/trial", "/trial/start"], {}); replaceProject(payload.project); }
     render();
   } catch (error) { showError(error.message); }
 }
@@ -383,7 +387,7 @@ async function submitTrialFeedback(project) {
   const button = $("#submitTrialFeedbackButton"); if (button) button.disabled = true; clearError();
   try {
     if (online) { project.trial = project.trial || { status: "active", outcome: "", feedback: [], started_at: now(), updated_at: now() }; project.trial.feedback = [...list(project.trial.feedback), feedback]; project.trial.outcome = outcome; project.trial.updated_at = now(); transition(project, "trial", { evidence: [feedback], pending: [] }); persist(); }
-    else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/trial-feedback`, { method: "POST", body: JSON.stringify({ feedback, outcome }) }); state.current = payload.project; }
+    else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/trial-feedback`, { method: "POST", body: JSON.stringify({ feedback, outcome }) }); replaceProject(payload.project); }
     render();
   } catch (error) { showError(error.message); if (button) button.disabled = false; }
 }
