@@ -288,4 +288,14 @@ def runtime_health(project_id: str, store: Store = Depends(get_store)) -> dict:
         raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"})
     if project.plan is None or project.status not in {"preview_ready", "trial"}:
         raise HTTPException(status_code=409, detail={"code": "runtime_not_ready", "message": "运行时尚未准备好"})
-    return {"status": "ok", "runtime": "local", "project_id": project.id}
+    # Keep transport health separate from product acceptance. A page can
+    # respond while the preview has not gone through explicit verification.
+    artifact = project.preview
+    preview_status = artifact.status if artifact is not None else "unverified"
+    return {
+        "status": "ok",
+        "runtime": "local",
+        "project_id": project.id,
+        "preview_status": preview_status,
+        "verified": preview_status == "verified",
+    }

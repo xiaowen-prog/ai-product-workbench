@@ -221,6 +221,7 @@ def modify_plan(store: Store, project_id: str, text: str) -> Project:
         raise ValueError("方案修改内容不能为空")
     project.plan.summary = f"{project.plan.summary}（用户补充调整：{cleaned}）"
     project.plan.open_questions = [question for question in project.plan.open_questions if question != cleaned]
+    project.plan_revision = {"status": "applied", "note": cleaned, "applied_at": now()}
     transition(project, ProjectStatus.NEEDS_PLAN_CONFIRMATION, actor="user", evidence=[cleaned])
     project.updated_at = now()
     return store.upsert_project(project)
@@ -386,6 +387,7 @@ def confirm_plan(store: Store, project_id: str, confirmed: bool, note: str = "")
         project.tasks.append(Task(id=f"task_{uuid4().hex[:10]}", kind="backend_build", status="running", progress=10, message="正在生成 API、数据模型和测试验收任务", created_at=now(), updated_at=now()))
         _make_backend(project)
     else:
+        project.plan_revision = {"status": "needs_input", "prompt": "方案需要调整哪一处？", "requested_at": now()}
         project.questions = [_question_catalog(project.idea)["plan_correction"]]
         transition(project, ProjectStatus.NEEDS_PLAN_CONFIRMATION, pending=["plan_correction"])
         project.updated_at = now()

@@ -18,19 +18,20 @@ function statusLabel(status, project) {
     idea: "等待开始", needs_clarification: "需求发现", needs_discovery: "需求发现",
     needs_intent_confirmation: "待确认需求", requirements_confirmed: "需求已确认",
     plan_draft: "待确认方案", needs_plan_confirmation: "待确认方案", plan_ready: "方案已确认",
-    backend_building: "后端开发中", backend_verified: "等你验收", preview_ready: "示例可查看", trial: "试用中", accepted: "已完成"
+    backend_building: "后端开发中", backend_verified: "等你验收", preview_ready: "可运行预览 · 待试用", trial: "试用与反馈", accepted: "已完成"
   }[status] || "进行中";
 }
 function sourceLabel(project) { return project?.tasks?.some((task) => task.kind === "generate_plan_real" && task.status === "succeeded") ? "真实模型方案" : "本地结构化方案 · mock"; }
-function phaseForStatus(status) {
+function phaseForStatus(status, project) {
   if (["needs_clarification", "needs_discovery"].includes(status)) return 1;
   if (["needs_intent_confirmation", "requirements_confirmed"].includes(status)) return 2;
   if (["plan_draft", "needs_plan_confirmation", "plan_ready"].includes(status)) return 3;
-  if (["preview_ready", "trial", "accepted"].includes(status)) return 5;
+  if (status === "preview_ready") return project?.preview?.status === "verified" ? 5 : 4;
+  if (["trial", "accepted"].includes(status)) return 5;
   return 4;
 }
 function setFlow(step, project) {
-  const labels = ["想法", "需求发现", "需求确认", "方案确认", "后端验收"];
+  const labels = ["想法", "需求发现", "需求确认", "方案确认", "后端验收", "试用与反馈"];
   [...document.querySelectorAll(".flow-item")].forEach((item, index) => {
     item.classList.toggle("active", index === step && step < labels.length);
     item.classList.toggle("done", index < step);
@@ -53,6 +54,13 @@ function syncEntry(project) {
   form.classList.add("hidden"); bar.classList.remove("hidden");
   if (kicker) kicker.textContent = "CURRENT TASK";
   if (title) title.textContent = "当前任务";
+  const summary = bar.querySelector(".current-project-summary");
+  if (summary) {
+    const idea = summary.querySelector("strong");
+    const meta = summary.querySelector("small");
+    if (idea) idea.textContent = project.idea || "未命名项目";
+    if (meta) meta.textContent = `${statusLabel(statusOf(project), project)}${versionLabel(project)}`;
+  }
 }
 function canStartBuild() { return online || Boolean(state.model?.can_build ?? state.model?.configured); }
 function renderStartGate() {
@@ -146,7 +154,7 @@ function render() {
   syncEntry(project);
   if (!project) { renderStartGate(); showOnly(); setFlow(0, null); renderProjects(); return; }
   const status = statusOf(project);
-  setFlow(phaseForStatus(status), project);
+  setFlow(phaseForStatus(status, project), project);
   if (["needs_clarification", "needs_discovery"].includes(status)) renderDiscovery(project);
   else if (["needs_intent_confirmation", "requirements_confirmed"].includes(status)) renderRequirements(project);
   else if (["plan_draft", "needs_plan_confirmation", "plan_ready"].includes(status)) renderPlanConfirmation(project);

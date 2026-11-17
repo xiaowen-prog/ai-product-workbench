@@ -148,6 +148,7 @@ class Project(BaseModel):
     backend: BackendBuild | None = None
     trial: Trial | None = None
     preview: PreviewArtifact | None = None
+    plan_revision: dict[str, Any] | None = None
     confirmations: Confirmation = Field(default_factory=Confirmation)
     tasks: list[Task] = Field(default_factory=list)
     events: list[ProjectEvent] = Field(default_factory=list)

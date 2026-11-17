@@ -91,9 +91,15 @@ def test_compatibility_routes_keep_user_in_confirmation_stages(client: TestClien
     assert supplement.status_code == 200
     assert supplement.json()["project"]["status"] == "needs_intent_confirmation"
     project = client.post(f"/api/v1/projects/{project['id']}/confirm-intent", json={"confirmed": True}).json()["project"]
+    rejected_plan = client.post(f"/api/v1/projects/{project['id']}/confirm-plan", json={"confirmed": False}).json()["project"]
+    assert rejected_plan["status"] == "needs_plan_confirmation"
+    assert rejected_plan["plan_revision"]["status"] == "needs_input"
     modified = client.post(f"/api/v1/projects/{project['id']}/modify-plan", json={"note": "先做网页，不做登录"})
     assert modified.status_code == 200
     assert "先做网页" in modified.json()["project"]["plan"]["summary"]
+    assert modified.json()["project"]["plan_revision"]["status"] == "applied"
+    confirmed = client.post(f"/api/v1/projects/{project['id']}/confirm-plan", json={"confirmed": True}).json()["project"]
+    assert confirmed["status"] == "backend_verified"
     blocked = client.post(f"/api/v1/projects/{project['id']}/iterations", json={"change_request": "过早迭代"})
     assert blocked.status_code == 409
 
