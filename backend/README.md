@@ -12,6 +12,8 @@ backend/start.sh
 
 部署到支持 Python 容器的公网平台时，启动入口会读取平台注入的 `PORT`，默认监听 `0.0.0.0`；本地需要限制为回环地址时可设置 `AI_WORKBENCH_HOST=127.0.0.1`。仓库根目录的 `Dockerfile` 可直接构建 FastAPI 运行时。公网部署前必须在平台 Secret 中配置 `MODEL_API_KEY`，不要把 Key 写进仓库或镜像；`AI_WORKBENCH_DATA_DIR` 默认仍是容器内 JSON 文件，若平台会重启或扩容，需要另接持久化存储后再把重启恢复当成生产能力。
 
+仓库也提供 Vercel 的 Python 入口。`api/index.py` 暴露同一个 FastAPI app，`vercel.json` 将公开路径转发到该入口。Vercel 环境变量仍需在平台后台配置，真实 Key 不进入仓库。
+
 离线示例入口是 `/?mode=offline-demo`，它不经过这个 API，也不会创建后端项目。
 
 ## 验证
