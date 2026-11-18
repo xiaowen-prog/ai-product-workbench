@@ -6,6 +6,26 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 
 
+def test_openapi_exposes_canonical_routes_only(tmp_path: Path):
+    client = TestClient(create_app(tmp_path / "openapi.json", require_model=False))
+    paths = client.get("/openapi.json").json()["paths"]
+    canonical = {
+        "/api/v1/projects/{project_id}/answers",
+        "/api/v1/projects/{project_id}/modify-plan",
+        "/api/v1/projects/{project_id}/iterations",
+        "/api/v1/projects/{project_id}/trial",
+    }
+    legacy = {
+        "/api/v1/projects/{project_id}/discovery-answers",
+        "/api/v1/projects/{project_id}/plan/modify",
+        "/api/v1/projects/{project_id}/new-requirement",
+        "/api/v1/projects/{project_id}/build",
+        "/api/v1/projects/{project_id}/trial/start",
+    }
+    assert canonical <= paths.keys()
+    assert not legacy & paths.keys()
+
+
 def test_project_flow_persists_and_creates_iteration(tmp_path: Path):
     data = tmp_path / "projects.json"
     client = TestClient(create_app(data, require_model=False))

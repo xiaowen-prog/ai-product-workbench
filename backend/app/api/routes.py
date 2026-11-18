@@ -89,7 +89,7 @@ def answer(project_id: str, request: AnswerRequest, store: Store = Depends(get_s
     return {"project": public_project(project)}
 
 
-@router.post("/projects/{project_id}/discovery-answers")
+@router.post("/projects/{project_id}/discovery-answers", include_in_schema=False)
 def discovery_answers(project_id: str, request: AnswerRequest, store: Store = Depends(get_store)) -> dict:
     """需求发现的多轮补问入口；/answers 保留为兼容别名。"""
     return answer(project_id, request, store)
@@ -131,7 +131,7 @@ def supplement(project_id: str, request: TextRequest, store: Store = Depends(get
 
 
 @router.post("/projects/{project_id}/modify-plan")
-@router.post("/projects/{project_id}/plan/modify")
+@router.post("/projects/{project_id}/plan/modify", include_in_schema=False)
 def plan_modification(project_id: str, request: TextRequest, store: Store = Depends(get_store)) -> dict:
     try:
         project = modify_plan(store, project_id, request.note or request.text)
@@ -143,7 +143,7 @@ def plan_modification(project_id: str, request: TextRequest, store: Store = Depe
 
 
 @router.post("/projects/{project_id}/iterations")
-@router.post("/projects/{project_id}/new-requirement")
+@router.post("/projects/{project_id}/new-requirement", include_in_schema=False)
 def iteration(project_id: str, request: IterationRequest, http_request: Request, store: Store = Depends(get_store)) -> dict:
     ensure_model_configured(http_request)
     try:
@@ -155,7 +155,7 @@ def iteration(project_id: str, request: IterationRequest, http_request: Request,
     return {"project": public_project(project)}
 
 
-@router.post("/projects/{project_id}/build")
+@router.post("/projects/{project_id}/build", include_in_schema=False)
 def build_backend(project_id: str, http_request: Request, store: Store = Depends(get_store)) -> dict:
     """兼容需要显式 build 按钮的客户端；确认方案后同步生成首版后端交付检查。"""
     ensure_model_configured(http_request)
@@ -180,7 +180,7 @@ def acceptance(project_id: str, request: AcceptanceRequest, store: Store = Depen
 
 
 @router.post("/projects/{project_id}/trial")
-@router.post("/projects/{project_id}/trial/start")
+@router.post("/projects/{project_id}/trial/start", include_in_schema=False)
 def trial_start(project_id: str, store: Store = Depends(get_store)) -> dict:
     try:
         project = start_trial(store, project_id)

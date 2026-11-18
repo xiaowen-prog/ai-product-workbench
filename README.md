@@ -12,7 +12,11 @@ backend/start.sh
 
 没有 Key 时可打开 `http://127.0.0.1:8766/?mode=offline-demo` 查看独立离线示例。离线示例使用浏览器 `localStorage`，不会创建本地 API 项目。
 
-审查快照和视觉探索页保存在 `docs/review/`，生产静态目录只保留工作台运行所需的 `index.html`、`app.js` 和 `app.css`。本地 API 的 canonical 路径是 `/answers`、`/confirm-intent`、`/confirm-plan`、`/modify-plan`、`/iterations`、`/acceptance` 和 `/trial`，旧别名暂时保留给外部客户端。
+## 目录和 API 边界
+
+审查快照和视觉探索页保存在 `docs/review/`，它们是历史验收证据，不是生产入口。生产静态目录 `dist/` 只保留工作台运行所需的 `index.html`、`app.js` 和 `app.css`；本地回滚副本放在被 Git 忽略的 `backups/`。
+
+本地 API 的 canonical 路径（省略 `/api/v1/projects/{project_id}` 前缀）是 `/answers`、`/confirm-intent`、`/confirm-plan`、`/modify-plan`、`/iterations`、`/acceptance` 和 `/trial`。`/discovery-answers`、`/plan/modify`、`/new-requirement`、`/build`、`/trial/start` 仅作为历史客户端兼容别名保留，当前前端不调用，也不出现在 OpenAPI 正式契约中；在确认无外部调用后再删除。
 
 ## 验证
 
