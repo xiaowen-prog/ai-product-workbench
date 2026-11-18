@@ -44,8 +44,12 @@
     "mock": true,
     "real_model_verified": true,
     "real_model_evidence": "真实模型冒烟记录-2026-11-17.md",
-    "backend_production_deployed": false,
-    "public_release_verified": false,
+    "backend_production_deployed": true,
+    "public_release_verified": true,
+    "public_service_url": "https://ai-product-workbench-api-341888-6-1525683482.sh.run.tcloudbase.com",
+    "public_deployment_record": "docs/review/腾讯云公网部署记录-2026-11-18.md",
+    "public_model_status_verified": true,
+    "public_real_plan_verified": true,
     "real_model_button_disabled_when_unconfigured": true,
     "local_build_requires_api_key": true,
     "offline_demo_available_without_api_key": true,
@@ -59,7 +63,8 @@
     "local_runtime_url_verified": true,
     "local_runtime_health_verified": true,
     "local_runtime_core_action_verified": true,
-    "local_runtime_is_not_public_deployment": true
+    "local_runtime_is_not_public_deployment": true,
+    "public_runtime_core_action_verified": true
   },
   "review_questions": [
     "视觉调性是否符合少干扰、单任务工作台",
