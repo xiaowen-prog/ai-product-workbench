@@ -5,11 +5,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     AI_WORKBENCH_HOST=0.0.0.0
 
 WORKDIR /app
-COPY backend/requirements.txt /app/backend/requirements.txt
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+COPY backend/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY backend /app/backend
 COPY dist /app/dist
 
-EXPOSE 8766
-CMD ["sh", "-c", "python -m uvicorn app.main:app --app-dir backend --host ${AI_WORKBENCH_HOST:-0.0.0.0} --port ${PORT:-8766}"]
+EXPOSE 8080
+CMD ["sh", "-c", "exec python -m uvicorn app.main:app --app-dir backend --host ${AI_WORKBENCH_HOST:-0.0.0.0} --port ${PORT:-8080}"]
