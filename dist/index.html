@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f5f2ea" />
     <title>AI 产品工作台</title>
-    <link rel="stylesheet" href="/app.css?v=20261117-19" />
+    <link rel="stylesheet" href="/app.css?v=20261118-24" />
   </head>
   <body>
     <div class="shell">
@@ -18,21 +18,22 @@
       </header>
 
       <main>
-        <section class="hero">
-          <div class="eyebrow">ONE TASK AT A TIME</div>
-          <h1>把一个想法，<br /><em>推到能运行。</em></h1>
-          <p class="hero-copy">先确认问题，再确认方案。每一步只保留一个需要你决定的事情，直到得到一个可以打开、测试和继续修改的产品。</p>
-          <div class="promise-row">
-            <span><b>01</b> 说出想法</span><span><b>02</b> 发现需求</span><span><b>03</b> 确认需求</span><span><b>04</b> 确认方案</span><span><b>05</b> 后端验收</span><span><b>06</b> 试用反馈</span>
-          </div>
+        <section id="introBlock" class="intro">
+          <h1>把一个想法，推到能运行</h1>
+          <p class="intro-copy">先确认问题，再确认方案。每一步只保留一个需要你决定的事情，直到得到一个可以打开、测试和继续修改的产品。</p>
         </section>
 
         <section class="workspace-grid">
           <div class="main-column">
             <div id="welcomeGuide" class="welcome-guide hidden" role="status"></div>
-            <div class="section-heading">
-              <div><span class="section-kicker" id="entryKicker">START HERE</span><h2 id="entryTitle">你想做什么？</h2></div>
-              <span class="phase-label" id="phaseLabel">阶段 01 · 想法</span>
+            <div id="taskHeader" class="task-header">
+              <div class="task-header-top">
+                <span class="section-kicker" id="entryKicker">从这里开始</span>
+                <span class="status-chip is-progress" id="phaseLabel">想法</span>
+              </div>
+              <h2 id="entryTitle">你想做什么？</h2>
+              <p id="taskDecision" class="task-decision">用一句话写下要做的产品</p>
+              <p id="taskNext" class="task-next">完成后进入：需求发现</p>
             </div>
 
             <form id="ideaForm" class="idea-card">
@@ -41,10 +42,10 @@
               <textarea id="idea" name="idea" maxlength="500" placeholder="例如：我想做一个帮自由职业者把客户需求变成报价单的小工具"></textarea>
               <div class="form-bottom">
                 <span class="field-hint"><span class="hint-icon">i</span> 先说结果，不用描述技术</span>
-                <div class="form-actions"><button id="offlineExampleButton" class="secondary-button" type="button">查看离线示例</button><button id="startBuildButton" class="primary-button" type="submit"><span>开始搭建</span><span class="button-arrow">↗</span></button></div>
+                <div class="form-actions"><button id="cancelNewProjectButton" class="text-button hidden" type="button">返回当前任务</button><button id="offlineExampleButton" class="secondary-button" type="button">查看离线示例</button><button id="startBuildButton" class="primary-button" type="submit"><span>开始搭建</span><span class="button-arrow">↗</span></button></div>
               </div>
             </form>
-            <div id="newProjectBar" class="new-project-bar hidden"><div class="current-project-summary"><span class="section-kicker">CURRENT TASK</span><strong></strong><small></small></div><button id="showNewProjectButton" class="secondary-button" type="button">新建项目</button></div>
+            <div id="newProjectBar" class="new-project-bar hidden"><div class="current-project-summary"><span class="section-kicker">当前项目</span><strong></strong><small></small></div><button id="showNewProjectButton" class="text-button" type="button">新建项目</button></div>
 
             <div id="questionPanel" class="panel hidden"></div>
             <div id="planPanel" class="panel hidden"></div>
@@ -54,19 +55,21 @@
 
           <aside class="side-column">
             <div class="side-card progress-card">
-              <div class="side-card-head"><span class="section-kicker">PROJECT FLOW</span><span class="mini-live">LOCAL</span></div>
+              <div class="side-card-head"><span class="section-kicker">项目进程</span><span class="mini-live">本地</span></div>
               <div class="flow-list" id="flowList">
-                <div class="flow-item active"><span class="flow-number">01</span><div><strong>想法</strong><small>说清楚想解决什么</small></div><span class="flow-state">现在</span></div>
-                <div class="flow-item"><span class="flow-number">02</span><div><strong>需求发现</strong><small>事实、假设与风险</small></div><span class="flow-state">等待</span></div>
-                <div class="flow-item"><span class="flow-number">03</span><div><strong>需求确认</strong><small>确认用户、目标和范围</small></div><span class="flow-state">等待</span></div>
-                <div class="flow-item"><span class="flow-number">04</span><div><strong>方案确认</strong><small>确认 MVP 和验收标准</small></div><span class="flow-state">等待</span></div>
-                <div class="flow-item"><span class="flow-number">05</span><div><strong>后端验收</strong><small>API、测试、预览与结果</small></div><span class="flow-state">等待</span></div>
-                <div class="flow-item"><span class="flow-number">06</span><div><strong>试用与反馈</strong><small>打开产品并记录真实结果</small></div><span class="flow-state">等待</span></div>
+                <div class="flow-item active"><div><strong>想法</strong><small>说清楚想解决什么</small></div><span class="flow-state">进行中</span></div>
+                <div class="flow-item"><div><strong>需求发现</strong><small>回答会改变方向的问题</small></div><span class="flow-state">未开始</span></div>
+                <div class="flow-item"><div><strong>需求确认</strong><small>确认用户、目标和范围</small></div><span class="flow-state">未开始</span></div>
+                <div class="flow-item"><div><strong>方案确认</strong><small>确认方案能否作为开发输入</small></div><span class="flow-state">未开始</span></div>
+                <div class="flow-item"><div><strong>后端开发</strong><small>生成任务、接口和检查</small></div><span class="flow-state">未开始</span></div>
+                <div class="flow-item"><div><strong>后端验收</strong><small>验收这次后端交付</small></div><span class="flow-state">未开始</span></div>
+                <div class="flow-item"><div><strong>产品预览</strong><small>验证页面、健康检查和核心动作</small></div><span class="flow-state">未开始</span></div>
+                <div class="flow-item"><div><strong>试用与反馈</strong><small>记录一次实际使用结果</small></div><span class="flow-state">未开始</span></div>
               </div>
             </div>
 
             <div class="side-card recent-card">
-              <div class="side-card-head"><span class="section-kicker">PROJECTS</span><button id="refreshButton" class="icon-button" type="button" title="刷新" aria-label="刷新项目">↻</button></div>
+              <div class="side-card-head"><span class="section-kicker">项目列表</span><button id="refreshButton" class="icon-button" type="button" title="刷新" aria-label="刷新项目">↻</button></div>
               <div id="projectList" class="project-list"><div class="empty-projects">还没有项目<br /><span>从左侧输入一句话开始</span></div></div>
             </div>
 
@@ -77,6 +80,6 @@
       <footer><span>AI 产品工作台 · 浏览器 mock</span><span>单用户 · 不自动外发</span></footer>
     </div>
     <script>window.__ONLINE_PREVIEW__ = !["local"].includes(new URLSearchParams(window.location.search).get("mode"));</script>
-    <script src="/app.js?v=20261117-19" defer></script>
+    <script src="/app.js?v=20261118-24" defer></script>
   </body>
 </html>
