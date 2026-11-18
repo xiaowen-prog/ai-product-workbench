@@ -4,30 +4,29 @@ const offlineDemo = new URLSearchParams(window.location.search).get("mode") === 
 const $ = (selector) => document.querySelector(selector);
 
 const modePill = document.querySelector(".mode-pill");
-if (modePill) modePill.innerHTML = `<span class="status-dot"></span>${offlineDemo ? "离线示例 · mock" : online ? "本地预览 · mock 流程" : "本地 API · JSON 可恢复"}`;
+if (modePill) modePill.innerHTML = `<span class="status-dot"></span>${offlineDemo ? "离线示例 · mock" : online ? "浏览器 mock · localStorage" : "本地 API · JSON 可恢复"}`;
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
 }
 function showError(message) { const panel = $("#errorPanel"); panel.textContent = message; panel.classList.remove("hidden"); }
 function clearError() { $("#errorPanel").classList.add("hidden"); }
-function statusOf(project) { return project?.status || "idea"; }
+function statusOf(project) { return project?.status || "needs_discovery"; }
 function statusLabel(status, project) {
   if (status === "preview_ready") return project?.preview?.status === "verified" ? "可运行预览" : "预览待验证";
   return {
-    idea: "等待开始", needs_clarification: "需求发现", needs_discovery: "需求发现",
-    needs_intent_confirmation: "待确认需求", requirements_confirmed: "需求已确认",
-    plan_draft: "待确认方案", needs_plan_confirmation: "待确认方案", plan_ready: "方案已确认",
-    backend_building: "后端开发中", backend_verified: "等你验收", preview_ready: "可运行预览 · 待试用", trial: "试用与反馈", accepted: "已完成"
+    idea: "等待开始", needs_discovery: "需求发现",
+    needs_intent_confirmation: "待确认需求", needs_plan_confirmation: "待确认方案",
+    backend_building: "后端开发中", backend_verified: "等你验收", trial: "试用与反馈"
   }[status] || "进行中";
 }
 function sourceLabel(project) { return project?.tasks?.some((task) => task.kind === "generate_plan_real" && task.status === "succeeded") ? "真实模型方案" : "本地结构化方案 · mock"; }
 function phaseForStatus(status, project) {
-  if (["needs_clarification", "needs_discovery"].includes(status)) return 1;
-  if (["needs_intent_confirmation", "requirements_confirmed"].includes(status)) return 2;
-  if (["plan_draft", "needs_plan_confirmation", "plan_ready"].includes(status)) return 3;
+  if (status === "needs_discovery") return 1;
+  if (status === "needs_intent_confirmation") return 2;
+  if (status === "needs_plan_confirmation") return 3;
   if (status === "preview_ready") return project?.preview?.status === "verified" ? 5 : 4;
-  if (["trial", "accepted"].includes(status)) return 5;
+  if (status === "trial") return 5;
   return 4;
 }
 function setFlow(step, project) {
@@ -167,9 +166,9 @@ function render() {
   if (!project) { renderStartGate(); showOnly(); setFlow(0, null); renderProjects(); return; }
   const status = statusOf(project);
   setFlow(phaseForStatus(status, project), project);
-  if (["needs_clarification", "needs_discovery"].includes(status)) renderDiscovery(project);
-  else if (["needs_intent_confirmation", "requirements_confirmed"].includes(status)) renderRequirements(project);
-  else if (["plan_draft", "needs_plan_confirmation", "plan_ready"].includes(status)) renderPlanConfirmation(project);
+  if (status === "needs_discovery") renderDiscovery(project);
+  else if (status === "needs_intent_confirmation") renderRequirements(project);
+  else if (status === "needs_plan_confirmation") renderPlanConfirmation(project);
   else if (status === "backend_building") renderBackend(project, false);
   else if (status === "trial") { $("#phaseLabel").textContent = `试用中${versionLabel(project)}`; renderTrial(project); }
   else renderBackend(project, true);
@@ -179,7 +178,7 @@ function render() {
 function renderDiscovery(project) {
   showOnly("#questionPanel");
   const questions = list(project.questions);
-  const round = Math.max(1, Number(project.round ?? project.discovery_round ?? 0) + 1);
+  const round = Math.max(1, Number(project.discovery_round ?? project.round ?? 0) + 1);
   $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">DISCOVERY · ROUND ${round}${project.version > 1 ? ` · V${project.version}` : ""}</span><h3>先把需求说准</h3></div><span class="phase-label">${escapeHtml(project.idea.slice(0, 22))}</span></div><p class="panel-copy">这一轮只问会改变产品方向的问题。回答后，系统会判断还缺不缺信息；需要时会继续追问，不会把固定题数当成完成标准。${project.change_request ? `本次新增：${escapeHtml(project.change_request)}` : ""}</p><div class="question-list">${questions.map((question) => `<div class="question-card"><label for="answer-${escapeHtml(question.id)}">${escapeHtml(question.text)}</label><input id="answer-${escapeHtml(question.id)}" data-question-id="${escapeHtml(question.id)}" value="${escapeHtml(project.answers?.[question.id] || "")}" placeholder="${escapeHtml(question.hint || "用自己的话回答即可")}" autocomplete="off" /><small>${escapeHtml(question.reason || "这会影响需求、范围或验收")}</small></div>`).join("")}</div><div class="panel-actions"><button class="primary-button" id="answerButton" type="button"><span>记录回答，继续判断</span><span class="button-arrow">↗</span></button></div>`;
   $("#answerButton").addEventListener("click", submitAnswers);
 }
@@ -206,7 +205,7 @@ function renderPlanConfirmation(project) {
     $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">PLAN REVISION</span><h3>告诉我方案哪里要改</h3></div><span class="phase-label">仍在方案确认</span></div><p class="panel-copy">这里只修改方案，不会把你拉回需求发现，也不会重新回答旧问题。</p><div class="question-list"><div class="question-card"><label for="answer-plan-correction">${escapeHtml(correction.prompt || "方案需要调整哪一处？")}</label><input id="answer-plan-correction" placeholder="用自己的话描述修改" autocomplete="off" /></div></div><div class="panel-actions"><button class="primary-button" id="planCorrectionButton" type="button"><span>更新方案</span><span class="button-arrow">↗</span></button></div>`;
     $("#planCorrectionButton").addEventListener("click", async () => {
       const value = $("#answer-plan-correction").value.trim(); if (!value) { showError("先说清楚要改哪一处"); return; }
-      try { if (online) { project.plan.summary = `${project.plan.summary}（用户补充调整：${value}）`; project.plan_revision = { status: "applied", note: value, applied_at: now() }; project.events = Array.isArray(project.events) ? project.events : []; project.events.push({ id: `evt_${Date.now()}_${project.events.length}`, from: "plan_draft", to: "plan_draft", actor: "user", input_version: project.version || 1, output_version: project.version || 1, evidence: [value], pending: [], at: now() }); persist(); } else { const payload = await postCandidates(project.id, ["/modify-plan", "/plan/modify"], { note: value }); replaceProject(payload.project); } render(); }
+      try { if (online) { project.plan.summary = `${project.plan.summary}（用户补充调整：${value}）`; project.plan_revision = { status: "applied", note: value, applied_at: now() }; project.events = Array.isArray(project.events) ? project.events : []; project.events.push({ id: `evt_${Date.now()}_${project.events.length}`, from: "needs_plan_confirmation", to: "needs_plan_confirmation", actor: "user", input_version: project.version || 1, output_version: project.version || 1, evidence: [value], pending: [], at: now() }); persist(); } else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/modify-plan`, { method: "POST", body: JSON.stringify({ note: value }) }); replaceProject(payload.project); } render(); }
       catch (error) { showError(error.message); }
     });
     return;
@@ -224,17 +223,17 @@ function renderBackend(project, verified) {
   showOnly("#previewPanel");
   const backend = projectBackend(project); const tasks = list(project.tasks);
   const checks = backend.verification || backend.tests || backend.checks || [];
-  const accepted = statusOf(project) === "preview_ready";
+  const previewReady = statusOf(project) === "preview_ready";
   const runtimeReady = project.preview?.status === "verified";
   const canTrial = online || runtimeReady;
   const previewLabel = online ? "产品示例 · mock" : runtimeReady ? "本地可运行预览" : "运行时预览待验证";
   const previewState = online ? "示例已准备" : runtimeReady ? "运行检查通过" : "等待运行检查";
-  const preview = project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(accepted ? previewLabel : project.plan.preview_label || "产品示例")}</span><span>${escapeHtml(accepted ? previewState : verified ? "等你确认" : "后端开发中")}</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || project.answers?.core_action || "打开运行时预览")} ↗</span></div></div>` : "";
-  const title = accepted ? (runtimeReady ? "可运行预览已验证" : "先验证可运行预览") : verified ? "后端已生成，等你验收" : "正在生成后端与测试";
-  const action = accepted ? `<button class="secondary-button" id="openPreviewButton" type="button">${runtimeReady ? "打开可运行预览" : "验证并打开预览"}</button><button class="primary-button" id="startTrialButton" type="button"${canTrial ? "" : " disabled title=\"先验证可运行预览\""}><span>开始试用</span><span class="button-arrow">↗</span></button>` : verified ? '<button class="primary-button" id="acceptanceButton" type="button"><span>验收通过，完成首版闭环</span><span class="button-arrow">↗</span></button>' : '<button class="secondary-button" id="refreshBuildButton" type="button">刷新开发状态</button>';
-  const newRequirementForm = accepted && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">NEW VERSION · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经验收的版本。</p><textarea id="newRequirementInput" aria-label="下一版需求" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
-  $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">BACKEND DELIVERY · ${accepted ? "EXAMPLE" : verified ? "VERIFY" : "BUILDING"}</span><h3>${title}</h3></div><span class="phase-label">${accepted ? (online ? "mock 示例" : runtimeReady ? "可运行预览" : "等待预览验证") : verified ? "待你验收" : "进行中"}</span></div><p class="panel-copy">这里展示 API、数据模型、测试和运行时结果。只有实际打开并完成规定检查的成果，才会标记为可运行。</p><div class="plan-grid"><div class="plan-block"><h4>API 与数据</h4><ul>${listHtml(backend.api_contract || backend.api || ["项目状态接口", "需求与方案确认接口", "预览与验收接口"])}</ul></div><div class="plan-block"><h4>开发任务</h4><ul>${tasks.length ? tasks.map((task) => `<li>${escapeHtml(task.message || task.kind)} · ${escapeHtml(task.status || "进行中")}</li>`).join("") : listHtml(backend.tasks, ["后端任务已创建，等待状态回写"])}</ul></div><div class="plan-block"><h4>测试与恢复</h4><ul>${listHtml(checks, ["结构化 API 测试", "重启恢复待验证", "示例入口已生成"])}</ul></div><div class="plan-block"><h4>完成条件</h4><ul>${listHtml(backend.acceptance || projectIntent(project).acceptance, ["用户能打开示例", "测试结果可查看", "项目状态可恢复"])}</ul></div></div>${preview}${newRequirementForm}<div class="panel-actions">${action}</div>`;
-  if (accepted) {
+  const preview = project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(previewReady ? previewLabel : project.plan.preview_label || "产品示例")}</span><span>${escapeHtml(previewReady ? previewState : verified ? "等你确认" : "后端开发中")}</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || project.answers?.core_action || "打开运行时预览")} ↗</span></div></div>` : "";
+  const title = previewReady ? (runtimeReady ? "可运行预览已验证" : "先验证可运行预览") : verified ? "后端已生成，等你验收" : "正在生成后端与测试";
+  const action = previewReady ? `<button class="secondary-button" id="openPreviewButton" type="button">${runtimeReady ? "打开可运行预览" : "验证并打开预览"}</button><button class="primary-button" id="startTrialButton" type="button"${canTrial ? "" : " disabled title=\"先验证可运行预览\""}><span>开始试用</span><span class="button-arrow">↗</span></button>` : verified ? '<button class="primary-button" id="acceptanceButton" type="button"><span>验收通过，完成首版闭环</span><span class="button-arrow">↗</span></button>' : '<button class="secondary-button" id="refreshBuildButton" type="button">刷新开发状态</button>';
+  const newRequirementForm = previewReady && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">NEW VERSION · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经验收的版本。</p><textarea id="newRequirementInput" aria-label="下一版需求" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
+  $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">BACKEND DELIVERY · ${previewReady ? "EXAMPLE" : verified ? "VERIFY" : "BUILDING"}</span><h3>${title}</h3></div><span class="phase-label">${previewReady ? (online ? "mock 示例" : runtimeReady ? "可运行预览" : "等待预览验证") : verified ? "待你验收" : "进行中"}</span></div><p class="panel-copy">这里展示 API、数据模型、测试和运行时结果。只有实际打开并完成规定检查的成果，才会标记为可运行。</p><div class="plan-grid"><div class="plan-block"><h4>API 与数据</h4><ul>${listHtml(backend.api_contract || backend.api || ["项目状态接口", "需求与方案确认接口", "预览与验收接口"])}</ul></div><div class="plan-block"><h4>开发任务</h4><ul>${tasks.length ? tasks.map((task) => `<li>${escapeHtml(task.message || task.kind)} · ${escapeHtml(task.status || "进行中")}</li>`).join("") : listHtml(backend.tasks, ["后端任务已创建，等待状态回写"])}</ul></div><div class="plan-block"><h4>测试与恢复</h4><ul>${listHtml(checks, ["结构化 API 测试", "重启恢复待验证", "示例入口已生成"])}</ul></div><div class="plan-block"><h4>完成条件</h4><ul>${listHtml(backend.acceptance || projectIntent(project).acceptance, ["用户能打开示例", "测试结果可查看", "项目状态可恢复"])}</ul></div></div>${preview}${newRequirementForm}<div class="panel-actions">${action}</div>`;
+  if (previewReady) {
     $("#openPreviewButton").addEventListener("click", () => openPreview(project));
     $("#startTrialButton").addEventListener("click", () => startTrial(project));
   } else if (verified) $("#acceptanceButton").addEventListener("click", () => acceptBuild(project));
@@ -267,14 +266,6 @@ async function api(path, options = {}) {
   if (!response.ok) { const error = new Error(payload.error?.message || payload.detail?.message || "这一步暂时失败，请再试一次"); error.status = response.status; throw error; }
   return payload;
 }
-async function postCandidates(projectId, paths, body) {
-  let lastError;
-  for (const path of paths) {
-    try { return await api(`/api/v1/projects/${encodeURIComponent(projectId)}${path}`, { method: "POST", body: JSON.stringify(body) }); }
-    catch (error) { lastError = error; if (![404, 405].includes(error.status)) throw error; }
-  }
-  throw lastError || new Error("接口暂未接入");
-}
 async function loadModelStatus() {
   if (online) { state.model = { configured: false, required: false, can_build: true, model: "offline-mock" }; state.modelUnavailable = false; renderStartGate(); renderWelcomeGuide(); return; }
   try { state.model = await api("/api/v1/model/status"); state.modelUnavailable = false; }
@@ -302,7 +293,7 @@ async function createProject(event) {
   const button = $("#startBuildButton"); button.disabled = true; clearError();
   try {
     if (online) {
-      const project = { id: `p_${Date.now()}`, idea, version: 1, status: "idea", round: 0, questions: mockQuestions(idea, 0), answers: {}, events: [], created_at: now(), updated_at: now() };
+      const project = { id: `p_${Date.now()}`, idea, version: 1, status: "idea", discovery_round: 0, questions: mockQuestions(idea, 0), answers: {}, events: [], created_at: now(), updated_at: now() };
       transition(project, "needs_discovery", { pending: project.questions.map((question) => question.id) });
       state.current = project; state.projects = [project, ...state.projects.filter((item) => item.id !== project.id)]; persist();
     } else { const payload = await api("/api/v1/projects", { method: "POST", body: JSON.stringify({ idea }) }); state.current = payload.project; localStorage.setItem("ai-workbench-project", state.current.id); await loadProjects(); }
@@ -318,8 +309,9 @@ async function submitAnswers() {
   try {
     if (online) {
       Object.assign(state.current.answers, answers);
-      const nextQuestions = mockQuestions(state.current.idea, Number(state.current.round || 0) + 1, state.current.answers);
-      state.current.round = Number(state.current.round || 0) + 1;
+      const nextRound = Number(state.current.discovery_round ?? state.current.round ?? 0) + 1;
+      const nextQuestions = mockQuestions(state.current.idea, nextRound, state.current.answers);
+      state.current.discovery_round = nextRound;
       state.current.questions = nextQuestions;
       if (nextQuestions.length) transition(state.current, "needs_discovery", { pending: nextQuestions.map((question) => question.id), evidence: Object.entries(answers).map(([id, value]) => `${id}: ${value}`) });
       else { state.current.discovery = mockDiscovery(state.current); state.current.intent = mockIntent(state.current); transition(state.current, "needs_intent_confirmation", { evidence: Object.entries(answers).map(([id, value]) => `${id}: ${value}`) }); }
@@ -330,8 +322,8 @@ async function submitAnswers() {
   } catch (error) { showError(error.message); button.disabled = false; }
 }
 async function continueDiscovery(project) {
-  if (online) { project.round = Number(project.round || 0) + 1; project.questions = mockQuestions(project.idea, project.round, project.answers || {}); transition(project, "needs_discovery", { pending: project.questions.map((question) => question.id) }); persist(); render(); return; }
-  try { const payload = await postCandidates(project.id, ["/confirm-intent"], { confirmed: false, note: "需要补充或修正需求" }); replaceProject(payload.project); render(); }
+  if (online) { project.discovery_round = Number(project.discovery_round ?? project.round ?? 0) + 1; project.questions = mockQuestions(project.idea, project.discovery_round, project.answers || {}); transition(project, "needs_discovery", { pending: project.questions.map((question) => question.id) }); persist(); render(); return; }
+  try { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/confirm-intent`, { method: "POST", body: JSON.stringify({ confirmed: false, note: "需要补充或修正需求" }) }); replaceProject(payload.project); render(); }
   catch (error) { showError(error.message); }
 }
 function submitSupplement(project) {
@@ -353,7 +345,7 @@ async function confirmIntent(project) {
   clearError();
   try {
     if (online) { project.plan = mockPlan(project); transition(project, "needs_plan_confirmation", { pending: project.plan.open_questions || [] }); persist(); }
-    else { const payload = await postCandidates(project.id, ["/confirm-intent", "/requirements/confirm"], { confirmed: true }); replaceProject(payload.project); }
+    else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/confirm-intent`, { method: "POST", body: JSON.stringify({ confirmed: true }) }); replaceProject(payload.project); }
     render();
   } catch (error) { showError(error.message); }
 }
@@ -366,7 +358,7 @@ async function confirmPlan(project, confirmed = true) {
   clearError();
   try {
     if (online) { if (confirmed) { project.backend = mockBackend(project); transition(project, "backend_verified", { pending: project.backend.tests || [] }); } else { project.plan_revision = { status: "needs_input", prompt: "方案需要调整哪一处？", requested_at: now() }; transition(project, "needs_plan_confirmation", { pending: ["plan_revision"] }); } persist(); }
-    else { const payload = await postCandidates(project.id, ["/confirm-plan", "/plan/confirm"], { confirmed }); replaceProject(payload.project); }
+    else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/confirm-plan`, { method: "POST", body: JSON.stringify({ confirmed }) }); replaceProject(payload.project); }
     render();
   } catch (error) { showError(error.message); }
 }
@@ -377,13 +369,13 @@ async function createNextVersion(project) {
   try {
     if (online) {
       const version = Number(project.version || 1) + 1;
-      const next = { id: `p_${Date.now()}`, parent_id: project.id, root_id: project.root_id || project.id, version, idea: project.idea, change_request: change, status: "idea", round: 0, questions: [], answers: { change_request: change }, discovery: {}, intent: {}, plan: null, backend: null, events: [], created_at: now(), updated_at: now() };
+      const next = { id: `p_${Date.now()}`, parent_id: project.id, root_id: project.root_id || project.id, version, idea: project.idea, change_request: change, status: "idea", discovery_round: 0, questions: [], answers: { change_request: change }, discovery: {}, intent: {}, plan: null, backend: null, events: [], created_at: now(), updated_at: now() };
       next.questions = mockQuestions(next.idea, 0, next.answers, change);
       transition(next, "needs_discovery", { evidence: [change], pending: next.questions.map((question) => question.id) });
       project.new_requirement_draft = false;
       state.current = next; state.projects = [next, ...state.projects]; persist(); render();
     } else {
-      const payload = await postCandidates(project.id, ["/iterations", "/new-requirement"], { change_request: change });
+      const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/iterations`, { method: "POST", body: JSON.stringify({ change_request: change }) });
       replaceProject(payload.project); render();
     }
   } catch (error) { showError(error.message); if (button) button.disabled = false; }
@@ -391,8 +383,8 @@ async function createNextVersion(project) {
 async function acceptBuild(project) {
   clearError();
   try {
-    if (online) { project.accepted = true; transition(project, "preview_ready", { pending: [] }); persist(); }
-    else { const payload = await postCandidates(project.id, ["/acceptance", "/verify"], { passed: true }); replaceProject(payload.project); }
+    if (online) { transition(project, "preview_ready", { pending: [] }); persist(); }
+    else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/acceptance`, { method: "POST", body: JSON.stringify({ passed: true }) }); replaceProject(payload.project); }
     render();
   } catch (error) { showError(error.message); }
 }
@@ -401,7 +393,7 @@ async function startTrial(project) {
   clearError();
   try {
     if (online) { project.trial = { status: "active", outcome: "", feedback: [], started_at: now(), updated_at: now() }; transition(project, "trial", { pending: ["trial_feedback"] }); persist(); }
-    else { const payload = await postCandidates(project.id, ["/trial", "/trial/start"], {}); replaceProject(payload.project); }
+    else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/trial`, { method: "POST", body: JSON.stringify({}) }); replaceProject(payload.project); }
     render();
   } catch (error) { showError(error.message); }
 }
@@ -447,8 +439,24 @@ function mockDiscovery(project) { const a = project.answers || {}; return { targ
 function mockIntent(project) { const a = project.answers || {}; return { goal: `帮助${a.target_user || "目标用户"}${a.desired_outcome || "完成关键任务"}`, target_user: a.target_user || "待确认", core_loop: `输入需求 → 明确问题 → ${a.desired_outcome || "得到可验证结果"} → 用户确认`, scope: ["需求发现", "需求确认", "方案确认", "后端 API 与测试", "产品预览"], acceptance: ["用户能看懂当前需求判断", "用户确认方案后才进入开发", "后端测试和预览结果可查看", "刷新或重启后项目仍可继续"], constraints: ["首版本地单用户", "未经确认不外发或发布"], risks: ["需求证据仍需真实用户验证"] }; }
 function mockPlan(project) { const intent = projectIntent(project); return { title: project.idea.slice(0, 32), summary: intent.goal, user_journey: ["说出想法", "澄清需求", "确认方案", "生成后端", "验收示例"], mvp_features: ["需求发现与红灯提示", "内部需求确认", "方案确认闸门", "API 与数据契约", "测试与示例"], generated_stack: ["FastAPI API", "Pydantic 数据契约", "可恢复任务状态", "结构化测试"], preview_label: "产品示例 · mock", open_questions: ["真实用户样例验证"] }; }
 function mockBackend(project) { return { api_contract: ["创建与读取项目", "提交多轮需求回答", "确认需求与方案", "后端开发状态与验收"], api: ["/api/v1/projects", "/confirm-intent", "/confirm-plan", "/acceptance"], tasks: ["生成 API 和数据契约", "建立项目状态持久化", "运行结构化接口测试", "生成可打开的预览"], tests: ["关键链路测试通过", "重启恢复待验证", "预览入口已生成"], acceptance: projectIntent(project).acceptance }; }
-function persist() { localStorage.setItem("ai-workbench-online-preview-projects", JSON.stringify(state.projects)); localStorage.setItem("ai-workbench-online-preview-current", state.current?.id || ""); }
-function loadSaved() { try { state.projects = JSON.parse(localStorage.getItem("ai-workbench-online-preview-projects") || "[]"); } catch (_) { state.projects = []; } const currentId = localStorage.getItem("ai-workbench-online-preview-current"); state.current = state.projects.find((project) => project.id === currentId) || state.projects[0] || null; render(); }
+const ONLINE_STORAGE_SCHEMA_VERSION = "2";
+const LEGACY_STATUS_MIGRATIONS = { idea: "needs_discovery", needs_clarification: "needs_discovery", requirements_confirmed: "needs_intent_confirmation", plan_draft: "needs_plan_confirmation", plan_ready: "needs_plan_confirmation", accepted: "preview_ready" };
+function normalizeSavedProject(project) {
+  if (!project || typeof project !== "object") return null;
+  const normalized = { ...project };
+  let changed = false;
+  const nextStatus = LEGACY_STATUS_MIGRATIONS[normalized.status];
+  if (nextStatus && nextStatus !== normalized.status) { normalized.status = nextStatus; changed = true; }
+  if (!Number.isInteger(normalized.discovery_round) && Number.isInteger(normalized.round)) { normalized.discovery_round = Math.max(0, normalized.round); changed = true; }
+  if ("round" in normalized) { delete normalized.round; changed = true; }
+  if (!normalized.backend && normalized.engineering && typeof normalized.engineering === "object") { normalized.backend = normalized.engineering; changed = true; }
+  if ("engineering" in normalized) { delete normalized.engineering; changed = true; }
+  if (normalized.answers && normalized.answers.core_action && !normalized.answers.desired_outcome) { normalized.answers = { ...normalized.answers, desired_outcome: normalized.answers.core_action }; changed = true; }
+  if ("accepted" in normalized) { delete normalized.accepted; changed = true; }
+  return { project: normalized, changed };
+}
+function persist() { localStorage.setItem("ai-workbench-online-preview-projects", JSON.stringify(state.projects)); localStorage.setItem("ai-workbench-online-preview-current", state.current?.id || ""); localStorage.setItem("ai-workbench-online-preview-schema", ONLINE_STORAGE_SCHEMA_VERSION); }
+function loadSaved() { let saved; let parsed = true; try { saved = JSON.parse(localStorage.getItem("ai-workbench-online-preview-projects") || "[]"); } catch (_) { saved = []; parsed = false; } const migrated = parsed && Array.isArray(saved) ? saved.map(normalizeSavedProject).filter(Boolean) : []; state.projects = migrated.map((entry) => entry.project); const currentId = localStorage.getItem("ai-workbench-online-preview-current"); state.current = state.projects.find((project) => project.id === currentId) || state.projects[0] || null; if (parsed && Array.isArray(saved) && (localStorage.getItem("ai-workbench-online-preview-schema") !== ONLINE_STORAGE_SCHEMA_VERSION || migrated.some((entry) => entry.changed))) persist(); render(); }
 async function mockApi() { throw new Error("在线演示不调用本地 API，请按页面按钮体验完整流程"); }
 
 $("#ideaForm").addEventListener("submit", createProject);

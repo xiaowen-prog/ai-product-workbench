@@ -5,12 +5,14 @@
 ## 启动本地后端
 
 uv venv backend/.venv
-uv pip install --python backend/.venv/bin/python -r backend/requirements.txt
+uv pip install --python backend/.venv/bin/python -r backend/requirements-dev.txt
 backend/start.sh
 
 打开 http://127.0.0.1:8766/?mode=local。此模式默认要求 `backend/.env` 配置 `MODEL_API_KEY`，没有 Key 不能创建真实项目；数据默认写到 `backend/data/workbench.json`，只保存在本机。真实模型 Key 只从 `backend/.env` 或进程环境读取。
 
 没有 Key 时可打开 `http://127.0.0.1:8766/?mode=offline-demo` 查看独立离线示例。离线示例使用浏览器 `localStorage`，不会创建本地 API 项目。
+
+审查快照和视觉探索页保存在 `docs/review/`，生产静态目录只保留工作台运行所需的 `index.html`、`app.js` 和 `app.css`。本地 API 的 canonical 路径是 `/answers`、`/confirm-intent`、`/confirm-plan`、`/modify-plan`、`/iterations`、`/acceptance` 和 `/trial`，旧别名暂时保留给外部客户端。
 
 ## 验证
 

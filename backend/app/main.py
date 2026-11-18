@@ -40,10 +40,7 @@ def create_app(store_path: Path | None = None, require_model: bool | None = None
 
     if STATIC_DIR.exists():
         # Keep the selected paper UI and the API on the same origin. The
-        # index references /app.js and /app.css, so mounting only /static
-        # would render an empty shell in local mode.
-        app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
-
+        # root mount serves the index and its sibling app.js/app.css files.
         @app.get("/", include_in_schema=False)
         def index() -> FileResponse:
             return FileResponse(STATIC_DIR / "index.html")

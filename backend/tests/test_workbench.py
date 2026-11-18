@@ -55,6 +55,7 @@ def test_health_and_static_home(client: TestClient):
     assert "把一个想法" in home.text
     assert client.get("/app.js").status_code == 200
     assert client.get("/app.css").status_code == 200
+    assert client.get("/assets/app.js").status_code == 404
 
 
 def test_create_requires_non_blank_idea(client: TestClient):

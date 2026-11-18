@@ -9,12 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class ProjectStatus(str, Enum):
     NEEDS_DISCOVERY = "needs_discovery"
-    NEEDS_CLARIFICATION = "needs_clarification"
     NEEDS_INTENT_CONFIRMATION = "needs_intent_confirmation"
     NEEDS_PLAN_CONFIRMATION = "needs_plan_confirmation"
     BACKEND_BUILDING = "backend_building"
     BACKEND_VERIFIED = "backend_verified"
-    PLAN_READY = "plan_ready"
     PREVIEW_READY = "preview_ready"
     TRIAL = "trial"
 
@@ -157,7 +155,7 @@ class Project(BaseModel):
 
 
 class StorePayload(BaseModel):
-    schema_version: int = 1
+    schema_version: int = 2
     projects: list[Project] = Field(default_factory=list)
 
 
@@ -207,10 +205,6 @@ class RuntimeActionRequest(BaseModel):
 
 class ProjectListResponse(BaseModel):
     projects: list[Project]
-
-
-class ErrorResponse(BaseModel):
-    error: dict[str, str]
 
 
 def public_project(project: Project) -> dict[str, Any]:

@@ -2,6 +2,10 @@
 
 这是当前浅色纸张工作台使用的本地 FastAPI 后端。它与 dist/ 同源提供静态页面，负责多轮需求发现、需求与方案确认、后端验收、试用反馈、重启恢复和 V2 版本迭代。验收后的版本必须先进入 `trial` 并记录一次 feedback，才允许创建 V2。默认不调用真实模型，也不自动发布。
 
+运行时依赖位于 `backend/requirements.txt`。本地测试和 TestClient 依赖位于 `backend/requirements-dev.txt`。
+
+工作区 JSON 会从 schema v1 自动迁移到 schema v2。旧状态名、旧字段名和旧事件字段会在第一次读取时规范化并原子回写。
+
 ## 启动
 
 在仓库根目录运行：

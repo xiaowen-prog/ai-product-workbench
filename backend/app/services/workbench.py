@@ -324,7 +324,7 @@ def answer_project(store: Store, project_id: str, answers: AnswerRequest) -> Pro
     if "plan_correction" in answers.answers:
         if project.status != ProjectStatus.NEEDS_PLAN_CONFIRMATION or project.plan is None:
             raise ValueError("当前不在方案确认阶段")
-    elif project.status not in {ProjectStatus.NEEDS_DISCOVERY, ProjectStatus.NEEDS_CLARIFICATION}:
+    elif project.status != ProjectStatus.NEEDS_DISCOVERY:
         raise ValueError("当前不在需求发现阶段")
     _validate_answers(project, answers)
     project.answers.update(answers.answers)
@@ -432,7 +432,7 @@ def generate_real_plan(store: Store, project_id: str, answers: AnswerRequest, cl
     project = store.get_project(project_id)
     if project is None:
         raise KeyError(project_id)
-    if project.status not in {ProjectStatus.NEEDS_PLAN_CONFIRMATION, ProjectStatus.PLAN_READY}:
+    if project.status != ProjectStatus.NEEDS_PLAN_CONFIRMATION:
         raise ValueError("请先完成需求澄清并生成方案")
     model_client = client or ModelClient()
     try:

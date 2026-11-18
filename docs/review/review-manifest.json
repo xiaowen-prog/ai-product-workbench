@@ -1,8 +1,9 @@
 {
   "name": "AI 产品工作台",
   "review_version": "2026-11-16",
+  "artifact_dir": "docs/review",
   "entry": "ai-review.html",
-  "target": "index.html",
+  "target": "dist/index.html",
   "mode": "default localStorage mock; ?mode=local uses same-origin FastAPI JSON API with API Key gate; ?mode=offline-demo is standalone mock",
   "visual_direction": "A · 浅色纸张",
   "state_machine": [
