@@ -26,6 +26,15 @@ class IterationRequest(BaseModel):
     change_request: str = Field(min_length=1, max_length=500)
 
 
+def external_url(request: Request, route_name: str, **path_params: str) -> str:
+    """在云托管反向代理后保留用户实际访问的 HTTPS 协议。"""
+    url = str(request.url_for(route_name, **path_params))
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip().lower()
+    if request.url.scheme == "https" or forwarded_proto == "https":
+        return url.replace("http://", "https://", 1)
+    return url
+
+
 def get_store(request: Request) -> Store:
     return request.app.state.store
 
@@ -227,9 +236,9 @@ def preview(project_id: str, request: Request, store: Store = Depends(get_store)
             "body": project.plan.summary,
             "primary_action": project.answers.get("desired_outcome", project.answers.get("core_action", "开始体验")),
             "badge": f"{source}方案 · 本地可运行预览" if artifact.status == "verified" else f"{source}方案 · 本地运行时预览",
-            "url": str(request.url_for("runtime_page", project_id=project.id)),
-            "health_url": str(request.url_for("runtime_health", project_id=project.id)),
-            "action_url": str(request.url_for("runtime_action", project_id=project.id)),
+            "url": external_url(request, "runtime_page", project_id=project.id),
+            "health_url": external_url(request, "runtime_health", project_id=project.id),
+            "action_url": external_url(request, "runtime_action", project_id=project.id),
             "kind": artifact.kind,
             "status": artifact.status,
             "checks": [check.model_dump(mode="json") for check in artifact.checks],
@@ -276,8 +285,8 @@ def runtime_page(project_id: str, request: Request, store: Store = Depends(get_s
     store.upsert_project(project)
     return HTMLResponse(render_runtime_page(
         project,
-        str(request.url_for("runtime_action", project_id=project.id)),
-        str(request.url_for("runtime_health", project_id=project.id)),
+        external_url(request, "runtime_action", project_id=project.id),
+        external_url(request, "runtime_health", project_id=project.id),
     ))
 
 
