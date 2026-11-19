@@ -12,6 +12,8 @@ backend/start.sh
 
 没有 Key 时可打开 `http://127.0.0.1:8766/?mode=offline-demo` 查看独立离线示例。离线示例使用浏览器 `localStorage`，不会创建本地 API 项目。
 
+长期静态演示入口：<https://xiaowen-prog.github.io/ai-product-workbench/>。该入口发布同一份 `dist/` v29，默认是浏览器 mock，不代表真实后端或真实模型验证；真实 API 仍使用同源 `?mode=local` 服务。
+
 ## 目录和 API 边界
 
 审查快照和视觉探索页保存在 `docs/review/`，它们是历史验收证据，不是生产入口。生产静态目录 `dist/` 只保留工作台运行所需的 `index.html`、`app.js` 和 `app.css`；本地回滚副本放在被 Git 忽略的 `backups/`。
