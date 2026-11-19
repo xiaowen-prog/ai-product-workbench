@@ -408,11 +408,74 @@ function renderUnknownStatus(project) {
   });
 }
 
+const QUESTION_OPTION_CATALOG = {
+  target_user: [
+    { id: "A", label: "个人创作者", description: "独立工作者、自由职业者或个人用户", recommended: true },
+    { id: "B", label: "小团队或工作室", description: "需要协作完成同一项工作的几个人" },
+    { id: "C", label: "企业或组织", description: "有部门、权限或流程要求的团队" },
+  ],
+  problem: [
+    { id: "A", label: "整理和沟通成本高", description: "信息分散，需要反复整理、确认或转述", recommended: true },
+    { id: "B", label: "协作和流程容易断", description: "多人或多工具之间难以持续推进" },
+    { id: "C", label: "结果不稳定或难验收", description: "同样的任务每次结果差异很大" },
+  ],
+  desired_outcome: [
+    { id: "A", label: "一份可以直接使用的结果", description: "例如报价单、方案或整理后的文档", recommended: true },
+    { id: "B", label: "清楚的下一步行动", description: "知道接下来该做什么、由谁来做" },
+    { id: "C", label: "自动完成一段重复工作", description: "减少复制、整理或反复检查" },
+  ],
+  current_workaround: [
+    { id: "A", label: "手工处理或使用表格", description: "靠复制、整理和人工检查完成", recommended: true },
+    { id: "B", label: "多个工具拼接使用", description: "在聊天、文档、表格之间来回切换" },
+    { id: "C", label: "目前没有固定办法", description: "遇到一次解决一次，没有稳定流程" },
+  ],
+  constraints: [
+    { id: "A", label: "先做本地单用户", description: "不接入外部账号，不自动发布", recommended: true },
+    { id: "B", label: "需要多人在线协作", description: "首版就要支持共享或权限" },
+    { id: "C", label: "需要接入已有系统", description: "要连接企业内部数据或已有工具" },
+  ],
+  affected_area: [
+    { id: "A", label: "需求和流程", description: "改变用户目标、步骤或判断方式", recommended: true },
+    { id: "B", label: "方案和后端", description: "改变功能、接口或数据结构" },
+    { id: "C", label: "预览和体验", description: "主要改变界面、展示或试用方式" },
+  ],
+};
+
+function questionOptions(question) {
+  return Array.isArray(question.options) && question.options.length ? question.options : QUESTION_OPTION_CATALOG[question.id] || [];
+}
+
+function optionMatchesAnswer(option, value) {
+  const answer = String(value || "").trim();
+  return answer === option.label || answer.startsWith(`${option.label}；`);
+}
+
+function renderQuestionCard(question, answer) {
+  const options = questionOptions(question);
+  if (!options.length) {
+    return `<div class="question-card"><label for="answer-${escapeHtml(question.id)}">${escapeHtml(question.text)}</label><input id="answer-${escapeHtml(question.id)}" data-question-id="${escapeHtml(question.id)}" value="${escapeHtml(answer)}" placeholder="${escapeHtml(question.hint || "用自己的话回答即可")}" autocomplete="off" /><small>${escapeHtml(question.reason || "这会影响需求、范围或验收")}</small></div>`;
+  }
+  const recommended = options.find((option) => option.recommended) || options[0];
+  return `<div class="question-card" data-question-card="${escapeHtml(question.id)}"><div class="question-label">${escapeHtml(question.text)}</div><div class="question-options" role="group" aria-label="${escapeHtml(question.text)}">${options.map((option) => `<button class="question-option${optionMatchesAnswer(option, answer) ? " is-selected" : ""}" data-question-option="${escapeHtml(question.id)}" data-option-value="${escapeHtml(option.label)}" type="button" aria-pressed="${optionMatchesAnswer(option, answer)}"><span class="question-option-key">${escapeHtml(option.id)}</span><span class="question-option-copy"><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.description || "")}</small></span>${option.recommended ? '<span class="question-option-badge">推荐</span>' : ""}</button>`).join("")}</div><input class="question-answer-value" type="hidden" data-question-id="${escapeHtml(question.id)}" value="${escapeHtml(answer)}" /><button class="question-recommend" data-question-recommend="${escapeHtml(question.id)}" data-recommend-value="${escapeHtml(recommended.label)}" type="button">按推荐选择：${escapeHtml(recommended.label)} ↗</button><input class="question-option-custom" data-question-custom="${escapeHtml(question.id)}" placeholder="也可以补充具体情况（可选）" value="" autocomplete="off" /><small>${escapeHtml(question.reason || "这会影响需求、范围或验收")}</small></div>`;
+}
+
+function selectQuestionOption(card, value) {
+  const input = card.querySelector("[data-question-id]");
+  if (input) input.value = value;
+  card.querySelectorAll("[data-question-option]").forEach((button) => {
+    const selected = button.dataset.optionValue === value;
+    button.classList.toggle("is-selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+}
+
 function renderDiscovery(project) {
   showOnly("#questionPanel");
   const questions = list(project.questions);
   const round = Math.max(1, Number(project.discovery_round ?? project.round ?? 0) + 1);
-  $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">需求发现 · 第 ${round} 轮${project.version > 1 ? ` · V${project.version}` : ""}</span><h3>先把需求说准</h3></div><span class="status-chip is-progress">${escapeHtml(project.idea.slice(0, 22))}</span></div><p class="panel-copy">这一轮只问会改变产品方向的问题。回答后，系统会判断还缺不缺信息；需要时会继续追问，不会把固定题数当成完成标准。${project.change_request ? `本次新增：${escapeHtml(project.change_request)}` : ""}</p><div class="question-list">${questions.map((question) => `<div class="question-card"><label for="answer-${escapeHtml(question.id)}">${escapeHtml(question.text)}</label><input id="answer-${escapeHtml(question.id)}" data-question-id="${escapeHtml(question.id)}" value="${escapeHtml(project.answers?.[question.id] || "")}" placeholder="${escapeHtml(question.hint || "用自己的话回答即可")}" autocomplete="off" /><small>${escapeHtml(question.reason || "这会影响需求、范围或验收")}</small></div>`).join("")}</div><div class="panel-actions"><button class="primary-button" id="answerButton" type="button"><span>记录回答，继续判断</span><span class="button-arrow">↗</span></button></div>`;
+  $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">需求澄清 · 第 ${round} 轮${project.version > 1 ? ` · V${project.version}` : ""}</span><h3>先把需求说准</h3></div><span class="status-chip is-progress">${escapeHtml(project.idea.slice(0, 22))}</span></div><p class="panel-copy">这一轮只问会改变产品方向的问题。直接选择最接近的一项，推荐项可以直接采用。需要时可以继续补充，不会把固定题数当成完成标准。${project.change_request ? `本次新增：${escapeHtml(project.change_request)}` : ""}</p><div class="question-list">${questions.map((question) => renderQuestionCard(question, project.answers?.[question.id] || "")).join("")}</div><div class="panel-actions"><button class="primary-button" id="answerButton" type="button"><span>记录回答，继续判断</span><span class="button-arrow">↗</span></button></div>`;
+  $("#questionPanel").querySelectorAll("[data-question-option]").forEach((button) => button.addEventListener("click", () => selectQuestionOption(button.closest("[data-question-card]"), button.dataset.optionValue)));
+  $("#questionPanel").querySelectorAll("[data-question-recommend]").forEach((button) => button.addEventListener("click", () => selectQuestionOption(button.closest("[data-question-card]"), button.dataset.recommendValue)));
   $("#answerButton").addEventListener("click", submitAnswers);
 }
 
@@ -421,7 +484,7 @@ function renderRequirements(project) {
   const intent = projectIntent(project); const discovery = projectDiscovery(project);
   const supplement = project.requirement_supplement?.status === "needs_input";
   const supplementBox = supplement ? `<div class="supplement-box"><div class="section-kicker">补充信息</div><h4>补充一条会改变判断的信息</h4><p>可以补充事实、约束或必须纳入的用户场景；提交后仍停留在需求确认。</p><textarea id="supplementInput" aria-label="补充需求信息" placeholder="例如：已有 5 次访谈都提到需要导入原始记录"></textarea><div class="panel-actions"><button class="secondary-button" id="skipSupplementButton" type="button">无需补充</button><button class="primary-button" id="submitSupplementButton" type="button"><span>提交补充</span><span class="button-arrow">↗</span></button></div></div>` : "";
-  $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">需求确认</span><h3>先确认需求判断</h3></div><span class="status-chip is-confirm">等你确认</span></div><p class="panel-copy">这不是长篇 PRD。请确认下面的用户、问题、证据和风险是否准确；确认后才会进入方案设计。</p><div class="plan-grid"><div class="plan-block"><h4>用户与目标</h4><p>${escapeHtml(intent.target_user || discovery.target_user || "待确认")}<br />${escapeHtml(intent.goal || discovery.problem || "待确认")}</p></div><div class="plan-block"><h4>证据与假设</h4><ul>${listHtml(discovery.evidence || discovery.facts, ["当前暂无外部证据，先按假设记录"])}</ul></div><div class="plan-block"><h4>核心结果</h4><p>${escapeHtml(intent.core_loop || discovery.desired_outcome || "待确认")}</p></div><div class="plan-block"><h4>红灯与待验证</h4><ul>${listHtml(discovery.red_flags || discovery.open_questions, ["暂无红灯；真实用户验证仍待完成"])}</ul></div></div>${supplementBox}<div class="panel-actions"><button class="secondary-button" id="continueDiscoveryButton" type="button">我还要补充</button><button class="primary-button" id="confirmIntentButton" type="button"><span>确认需求，进入方案</span><span class="button-arrow">↗</span></button></div>`;
+  $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 需求确认</span><h3>确认需求判断，生成 PRD</h3></div><span class="status-chip is-confirm">等你确认</span></div><p class="panel-copy">这一步会把用户、问题、证据、目标和风险整理成 PRD 的需求判断。确认后继续补齐方案，完成后交给模块二进行后端开发。</p><div class="plan-grid"><div class="plan-block"><h4>用户与目标</h4><p>${escapeHtml(intent.target_user || discovery.target_user || "待确认")}<br />${escapeHtml(intent.goal || discovery.problem || "待确认")}</p></div><div class="plan-block"><h4>证据与假设</h4><ul>${listHtml(discovery.evidence || discovery.facts, ["当前暂无外部证据，先按假设记录"])}</ul></div><div class="plan-block"><h4>核心结果</h4><p>${escapeHtml(intent.core_loop || discovery.desired_outcome || "待确认")}</p></div><div class="plan-block"><h4>红灯与待验证</h4><ul>${listHtml(discovery.red_flags || discovery.open_questions, ["暂无红灯；真实用户验证仍待完成"])}</ul></div></div>${supplementBox}<div class="panel-actions"><button class="secondary-button" id="continueDiscoveryButton" type="button">我还要补充</button><button class="primary-button" id="confirmIntentButton" type="button"><span>确认需求，继续整理 PRD</span><span class="button-arrow">↗</span></button></div>`;
   $("#continueDiscoveryButton").addEventListener("click", () => { project.requirement_supplement = { status: "needs_input", prompt: "补充一条会改变判断的信息" }; persist(); render(); });
   if (supplement) {
     $("#skipSupplementButton").addEventListener("click", () => { project.requirement_supplement = { status: "skipped", at: now() }; persist(); render(); });
@@ -448,7 +511,7 @@ function renderPlanConfirmation(project) {
   const modelButton = configured
     ? `<button class="secondary-button" id="realPlanButton" type="button">使用真实模型重生成</button>`
     : `<button class="secondary-button" id="realPlanButton" type="button" disabled title="当前未配置真实模型">真实模型未配置</button>`;
-  $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">方案确认</span><h3>${escapeHtml(plan.title || project.idea)}</h3></div><span class="status-chip is-confirm">${escapeHtml(sourceLabel(project))}</span></div><p class="panel-copy">方案是后端开发的输入。确认前不会生成开发任务，也不会自动发布或外发。</p><div class="plan-grid"><div class="plan-block"><h4>产品定位</h4><p>${escapeHtml(plan.summary || intent.goal || "待生成")}</p></div><div class="plan-block"><h4>核心闭环</h4><p>${escapeHtml(intent.core_loop || "待补充")}</p></div><div class="plan-block"><h4>MVP 范围</h4><ul>${listHtml(plan.mvp_features || plan.scope)}</ul></div><div class="plan-block"><h4>验收标准</h4><ul>${listHtml(intent.acceptance)}</ul></div></div><div class="panel-actions">${modelButton}<button class="secondary-button" id="modifyPlanButton" type="button">方案需要修改</button><button class="primary-button" id="confirmPlanButton" type="button"><span>确认方案，开始后端开发</span><span class="button-arrow">↗</span></button></div><div class="stage-note">${modelHint}</div>`;
+  $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 方案</span><h3>${escapeHtml(plan.title || project.idea)}</h3></div><span class="status-chip is-confirm">${escapeHtml(sourceLabel(project))}</span></div><p class="panel-copy">这份 PRD 已经包含产品定位、核心闭环、MVP 范围和验收标准。确认后进入模块二，根据这份 PRD 生成后端开发任务。</p><div class="plan-grid"><div class="plan-block"><h4>产品定位</h4><p>${escapeHtml(plan.summary || intent.goal || "待生成")}</p></div><div class="plan-block"><h4>核心闭环</h4><p>${escapeHtml(intent.core_loop || "待补充")}</p></div><div class="plan-block"><h4>MVP 范围</h4><ul>${listHtml(plan.mvp_features || plan.scope)}</ul></div><div class="plan-block"><h4>验收标准</h4><ul>${listHtml(intent.acceptance)}</ul></div></div><div class="panel-actions">${modelButton}<button class="secondary-button" id="modifyPlanButton" type="button">方案需要修改</button><button class="primary-button" id="confirmPlanButton" type="button"><span>确认 PRD，开始后端开发</span><span class="button-arrow">↗</span></button></div><div class="stage-note">${modelHint}</div>`;
   $("#confirmPlanButton").addEventListener("click", () => confirmPlan(project, true));
   $("#modifyPlanButton").addEventListener("click", () => confirmPlan(project, false));
   $("#realPlanButton").addEventListener("click", generateRealPlan);
@@ -464,7 +527,7 @@ function renderBackend(project, verified) {
   const previewState = stage.previewState;
   const preview = project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(previewReady ? previewLabel : project.plan.preview_label || "产品示例")}</span><span>${escapeHtml(previewReady ? previewState : verified ? "等你确认" : "后端开发中")}</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || project.answers?.core_action || (online ? "查看示例结果" : "打开运行时预览"))} ↗</span></div></div>` : "";
   const title = previewReady ? stage.title : verified ? "后端已生成，等你验收" : "正在生成后端与测试";
-  const headingKicker = previewReady ? "产品预览" : verified ? "后端验收" : "后端开发";
+  const headingKicker = previewReady ? "模块二 · 产品预览" : verified ? "模块二 · 后端验收" : "模块二 · 后端开发";
   const chipClass = { "preview-verified": "is-preview-verified", "preview-pending": "is-preview-pending", "example-viewed": "is-confirm", "example-pending": "is-progress" }[stage.chipKind] || "is-progress";
   const headingChip = previewReady
     ? `<span class="status-chip ${chipClass}">${escapeHtml(stage.chip)}</span>`
@@ -514,7 +577,7 @@ function renderTrial(project) {
   }
 }
 
-window.__workbenchUi = { pickModelStatus, statusOf, statusLabel, phaseForStatus, resultKind, chipText, taskCopy, isPreviewVerified, isMockExampleViewed, markMockExampleViewed, previewStageView, hasTrialFeedback, isPlanRevising, isKnownStatus, isUnknownProject, canStartBuild, canStartTrial, canSubmitTrialFeedback, canCreateNextVersion };
+window.__workbenchUi = { pickModelStatus, statusOf, statusLabel, phaseForStatus, resultKind, chipText, taskCopy, isPreviewVerified, isMockExampleViewed, markMockExampleViewed, previewStageView, hasTrialFeedback, isPlanRevising, isKnownStatus, isUnknownProject, canStartBuild, canStartTrial, canSubmitTrialFeedback, canCreateNextVersion, questionOptions, optionMatchesAnswer };
 
 async function api(path, options = {}) {
   if (online) return mockApi(path, options);
@@ -560,7 +623,12 @@ async function createProject(event) {
 }
 function currentAnswers() { return state.current?.answers || {}; }
 async function submitAnswers() {
-  const answers = {}; document.querySelectorAll("[data-question-id]").forEach((input) => { answers[input.dataset.questionId] = input.value.trim(); });
+  const answers = {};
+  document.querySelectorAll("[data-question-id]").forEach((input) => {
+    const custom = input.closest("[data-question-card]")?.querySelector("[data-question-custom]")?.value.trim();
+    const selected = input.value.trim();
+    answers[input.dataset.questionId] = custom ? (selected ? `${selected}；补充：${custom}` : custom) : selected;
+  });
   if (Object.values(answers).some((answer) => !answer)) { showError("还有一个关键问题没有回答"); return; }
   const button = $("#answerButton"); button.disabled = true; clearError();
   try {
@@ -689,14 +757,14 @@ async function openPreview(project) {
 
 function mockQuestions(idea, round, answers = {}, changeRequest = "") {
   const catalog = [
-    { id: "target_user", text: "最先服务哪一类具体的人？", hint: "例如：第一次做产品的个人创作者", reason: "决定第一版服务谁" },
-    { id: "problem", text: "他们现在遇到的具体问题是什么？", hint: "描述一个真实场景，不用写解决方案", reason: "区分真实需求和想象" },
-    { id: "desired_outcome", text: "用户完成一次使用后必须得到什么结果？", hint: "用一个可观察的结果描述", reason: "决定核心闭环与验收" },
-    { id: "current_workaround", text: "用户现在用什么办法解决？为什么还不够好？", hint: "没有现成办法可以填：目前没有", reason: "判断机会是否真实" }
+    { id: "target_user", text: "最先服务哪一类具体的人？", hint: "选最接近的一项即可", reason: "决定第一版服务谁", options: QUESTION_OPTION_CATALOG.target_user },
+    { id: "problem", text: "他们现在最需要解决哪一种问题？", hint: "选最接近的一项即可", reason: "区分真实需求和想象", options: QUESTION_OPTION_CATALOG.problem },
+    { id: "desired_outcome", text: "用户完成一次使用后必须得到什么结果？", hint: "选最接近的一项即可", reason: "决定核心闭环与验收", options: QUESTION_OPTION_CATALOG.desired_outcome },
+    { id: "current_workaround", text: "用户现在通常怎么解决？", hint: "选最接近的一项即可", reason: "判断机会是否真实", options: QUESTION_OPTION_CATALOG.current_workaround }
   ];
-  if (changeRequest && !answers.affected_area) catalog.unshift({ id: "affected_area", text: "这次新增会改变原产品的哪一段？", hint: "例如：只影响预览，不改变需求确认", reason: "只重算受影响的链路" });
+  if (changeRequest && !answers.affected_area) catalog.unshift({ id: "affected_area", text: "这次新增会改变原产品的哪一段？", hint: "选最接近的一项即可", reason: "只重算受影响的链路", options: QUESTION_OPTION_CATALOG.affected_area });
   const missing = catalog.filter((question) => !answers[question.id]);
-  if (/支付|医疗|健康|儿童|隐私|数据/.test(idea) && !answers.constraints) missing.push({ id: "constraints", text: "有哪些不能碰的边界？例如数据、平台、成本或权限。", hint: "不知道可以填：暂无", reason: "避免方案越过约束" });
+  if (/支付|医疗|健康|儿童|隐私|数据/.test(idea) && !answers.constraints) missing.push({ id: "constraints", text: "有哪些不能碰的边界？例如数据、平台、成本或权限。", hint: "选最接近的一项即可", reason: "避免方案越过约束", options: QUESTION_OPTION_CATALOG.constraints });
   return missing.slice(0, Math.min(3, missing.length));
 }
 function mockDiscovery(project) { const a = project.answers || {}; return { target_user: a.target_user, problem: a.problem, desired_outcome: a.desired_outcome, evidence: [a.problem].filter(Boolean), red_flags: ["证据仍来自当前输入，真实用户验证待完成"], open_questions: ["是否需要导入外部访谈或链接材料？"] }; }

@@ -15,6 +15,7 @@ from app.schemas.models import (
     ProjectEvent,
     ProjectStatus,
     Question,
+    QuestionOption,
     Trial,
     Task,
 )
@@ -53,12 +54,67 @@ def _question_catalog(idea: str) -> dict[str, Question]:
     elif any(word in idea for word in ("团队", "公司", "客户")):
         focus = "工作场景"
     return {
-        "target_user": Question(id="target_user", text=f"{focus}最先服务哪一类人？", hint="例如：第一次做产品的个人创作者"),
-        "problem": Question(id="problem", text="这类人现在遇到的具体问题是什么？", hint="描述一个真实场景，不用写解决方案"),
-        "desired_outcome": Question(id="desired_outcome", text="用户完成一次使用后，最希望得到什么结果？", hint="用结果描述，例如：得到一份可直接使用的报价"),
-        "current_workaround": Question(id="current_workaround", text="用户现在用什么办法解决？为什么还不够好？", hint="没有现成办法可以填：目前没有"),
-        "constraints": Question(id="constraints", text="有没有必须遵守的范围、数据或发布限制？", hint="没有可以填：暂时没有"),
-        "affected_area": Question(id="affected_area", text="这次新增会改变原产品的哪一段？", hint="例如：只影响预览，不改变需求确认", reason="只重算受影响链路"),
+        "target_user": Question(
+            id="target_user",
+            text=f"{focus}最先服务哪一类人？",
+            hint="选最接近的一项即可，之后仍可以补充",
+            options=[
+                QuestionOption(id="A", label="个人创作者", description="独立工作者、自由职业者或个人用户", recommended=True),
+                QuestionOption(id="B", label="小团队或工作室", description="需要协作完成同一项工作的几个人"),
+                QuestionOption(id="C", label="企业或组织", description="有部门、权限或流程要求的团队"),
+            ],
+        ),
+        "problem": Question(
+            id="problem",
+            text="这类人现在最需要解决哪一种问题？",
+            hint="选最接近的一项即可，之后仍可以补充",
+            options=[
+                QuestionOption(id="A", label="整理和沟通成本高", description="信息分散，需要反复整理、确认或转述", recommended=True),
+                QuestionOption(id="B", label="协作和流程容易断", description="多人或多工具之间难以持续推进"),
+                QuestionOption(id="C", label="结果不稳定或难验收", description="同样的任务每次结果差异很大"),
+            ],
+        ),
+        "desired_outcome": Question(
+            id="desired_outcome",
+            text="用户完成一次使用后，最希望得到什么结果？",
+            hint="选最接近的一项即可，之后仍可以补充",
+            options=[
+                QuestionOption(id="A", label="一份可以直接使用的结果", description="例如报价单、方案或整理后的文档", recommended=True),
+                QuestionOption(id="B", label="清楚的下一步行动", description="知道接下来该做什么、由谁来做"),
+                QuestionOption(id="C", label="自动完成一段重复工作", description="减少复制、整理或反复检查"),
+            ],
+        ),
+        "current_workaround": Question(
+            id="current_workaround",
+            text="用户现在通常怎么解决？",
+            hint="选最接近的一项即可，之后仍可以补充",
+            options=[
+                QuestionOption(id="A", label="手工处理或使用表格", description="靠复制、整理和人工检查完成", recommended=True),
+                QuestionOption(id="B", label="多个工具拼接使用", description="在聊天、文档、表格之间来回切换"),
+                QuestionOption(id="C", label="目前没有固定办法", description="遇到一次解决一次，没有稳定流程"),
+            ],
+        ),
+        "constraints": Question(
+            id="constraints",
+            text="有没有必须遵守的范围、数据或发布限制？",
+            hint="选最接近的一项即可，之后仍可以补充",
+            options=[
+                QuestionOption(id="A", label="先做本地单用户", description="不接入外部账号，不自动发布", recommended=True),
+                QuestionOption(id="B", label="需要多人在线协作", description="首版就要支持共享或权限"),
+                QuestionOption(id="C", label="需要接入已有系统", description="要连接企业内部数据或已有工具"),
+            ],
+        ),
+        "affected_area": Question(
+            id="affected_area",
+            text="这次新增会改变原产品的哪一段？",
+            hint="选最接近的一项即可，之后仍可以补充",
+            reason="只重算受影响链路",
+            options=[
+                QuestionOption(id="A", label="需求和流程", description="改变用户目标、步骤或判断方式", recommended=True),
+                QuestionOption(id="B", label="方案和后端", description="改变功能、接口或数据结构"),
+                QuestionOption(id="C", label="预览和体验", description="主要改变界面、展示或试用方式"),
+            ],
+        ),
         "intent_correction": Question(id="intent_correction", text="刚才的需求摘要哪里不准确？请直接说要改成什么。", hint="例如：目标用户不是个人，而是小团队"),
         "plan_correction": Question(id="plan_correction", text="方案哪里需要调整？请说最重要的一处变化。", hint="例如：先做网页，不做登录"),
     }

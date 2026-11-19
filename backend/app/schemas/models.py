@@ -17,11 +17,19 @@ class ProjectStatus(str, Enum):
     TRIAL = "trial"
 
 
+class QuestionOption(BaseModel):
+    id: str
+    label: str
+    description: str = ""
+    recommended: bool = False
+
+
 class Question(BaseModel):
     id: str
     text: str
     hint: str
     reason: str = "这会影响需求、范围或验收"
+    options: list[QuestionOption] = Field(default_factory=list)
 
 
 class Intent(BaseModel):

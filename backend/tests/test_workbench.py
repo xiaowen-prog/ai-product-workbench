@@ -23,6 +23,13 @@ def create_pending(client: TestClient) -> dict:
     return response.json()["project"]
 
 
+def test_discovery_questions_offer_recommended_options(client: TestClient):
+    project = create_pending(client)
+    for question in project["questions"]:
+        assert [option["id"] for option in question["options"]] == ["A", "B", "C"]
+        assert sum(option["recommended"] for option in question["options"]) == 1
+
+
 def complete_discovery(client: TestClient, project: dict) -> dict:
     for _ in range(5):
         if project["status"] != "needs_discovery":
