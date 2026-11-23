@@ -587,7 +587,7 @@ function renderDevelopmentSuggestions(project) {
 }
 
 function bindTeacherChat(project, stage) {
-  const panel = stage === "answers" ? $("#questionPanel") : $("#questionPanel");
+  const panel = stage === "development" ? $("#previewPanel") : $("#questionPanel");
   panel.querySelectorAll("[data-teacher-suggestion]").forEach((button) => button.addEventListener("click", () => sendTeacherChat(project, stage, button.dataset.teacherSuggestion, button)));
   panel.querySelectorAll("[data-teacher-choice]").forEach((button) => button.addEventListener("click", () => sendTeacherChat(project, stage, button.dataset.teacherChoice, button)));
   const send = () => {
