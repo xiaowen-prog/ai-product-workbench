@@ -259,6 +259,8 @@ textarea:hover, input:hover, select:hover { border-color: var(--border-hover); }
 .plan-progress-next strong { display: block; color: var(--accent); font-size: 14px; }
 .plan-progress-next p { margin: 5px 0 12px; color: var(--text-secondary); font-size: 13px; }
 .plan-progress-empty { padding: 18px 0; color: var(--text-tertiary); list-style: none; }
+.self-check-output { margin-top: 16px; }
+.self-check-output pre { max-height: 260px; margin: 10px 0 0; padding: 12px; overflow: auto; white-space: pre-wrap; color: var(--text-secondary); background: var(--surface-alt); border-radius: 8px; font: 11px/1.6 var(--font-mono); }
 
 .question-options { display: grid; gap: 8px; }
 .question-option { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 64px; padding: 10px 12px; color: var(--text); text-align: left; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; }

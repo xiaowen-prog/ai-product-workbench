@@ -829,17 +829,19 @@ function renderBackend(project, verified) {
     return;
   }
   const checks = backend.verification || backend.tests || backend.checks || [];
+  const selfCheckFailed = backend.status === "kit_self_check_failed";
+  const selfCheckOutput = String(backend.kit_last_output || "").trim();
   const stage = previewStageView(project);
   const previewReady = stage.previewReady;
   const previewLabel = stage.previewLabel;
   const previewState = stage.previewState;
   const preview = previewReady && project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(previewReady ? previewLabel : project.plan.preview_label || "产品示例")}</span><span>${escapeHtml(previewReady ? previewState : verified ? "等你确认" : "后端开发中")}</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || project.answers?.core_action || (online ? "查看示例结果" : "打开运行时预览"))} ↗</span></div></div>` : "";
-  const title = previewReady ? stage.title : verified ? "后端已生成，等你验收" : backend.status === "awaiting_external_coding" ? "等待外部编码工具完成" : backend.status === "kit_self_check_passed" ? `${backend.kit_stage || "本阶段"} 自检通过，等你确认` : "等待后端开发准备";
-  const headingKicker = previewReady ? "模块二 · 产品预览" : verified ? "模块二 · 后端验收" : backend.status === "awaiting_external_coding" ? "模块二 · 开发等待" : backend.status === "kit_self_check_passed" ? `模块二 · ${backend.kit_stage || "本阶段"}验收` : "模块二 · 后端开发";
+  const title = previewReady ? stage.title : verified ? "后端已生成，等你验收" : backend.status === "awaiting_external_coding" ? "等待外部编码工具完成" : selfCheckFailed ? `${backend.kit_stage || "本阶段"} 自检未通过` : backend.status === "kit_self_check_passed" ? `${backend.kit_stage || "本阶段"} 自检通过，等你确认` : "等待后端开发准备";
+  const headingKicker = previewReady ? "模块二 · 产品预览" : verified ? "模块二 · 后端验收" : backend.status === "awaiting_external_coding" ? "模块二 · 开发等待" : selfCheckFailed ? `模块二 · ${backend.kit_stage || "本阶段"}自检` : backend.status === "kit_self_check_passed" ? `模块二 · ${backend.kit_stage || "本阶段"}验收` : "模块二 · 后端开发";
   const chipClass = { "preview-verified": "is-preview-verified", "preview-pending": "is-preview-pending", "example-viewed": "is-confirm", "example-pending": "is-progress" }[stage.chipKind] || "is-progress";
   const headingChip = previewReady
     ? `<span class="status-chip ${chipClass}">${escapeHtml(stage.chip)}</span>`
-    : verified || backend.status === "kit_self_check_passed" ? '<span class="status-chip is-confirm">等你确认</span>' : '<span class="status-chip is-progress">进行中</span>';
+    : selfCheckFailed ? '<span class="status-chip is-revise">需要处理</span>' : verified || backend.status === "kit_self_check_passed" ? '<span class="status-chip is-confirm">等你确认</span>' : '<span class="status-chip is-progress">进行中</span>';
   const startTrialButton = stage.startEnabled
     ? `<button class="primary-button" id="startTrialButton" type="button"><span>开始试用</span><span class="button-arrow">↗</span></button>`
     : `<button class="secondary-button" id="startTrialButton" type="button" disabled title="${escapeHtml(stage.startDisabledReason)}">开始试用</button>`;
@@ -853,19 +855,20 @@ function renderBackend(project, verified) {
     ? (stage.startEnabled ? `${openPreviewButton}${startTrialButton}` : `${startTrialButton}${openPreviewButton}`)
     : verified
       ? '<button class="primary-button" id="acceptanceButton" type="button"><span>验收通过，进入产品预览</span><span class="button-arrow">↗</span></button>'
-      : backend.status === "awaiting_external_coding"
+      : backend.status === "awaiting_external_coding" || selfCheckFailed
         ? `<button class="primary-button" id="verifyBackendButton" type="button"><span>编码完成，运行阶段自检</span><span class="button-arrow">↗</span></button><button class="secondary-button" id="refreshBuildButton" type="button">刷新外部开发状态</button>`
         : backend.status === "kit_self_check_passed"
           ? `<button class="primary-button" id="acceptStageButton" type="button"><span>确认 ${escapeHtml(backend.kit_stage || "本阶段")}，进入 ${escapeHtml(nextStage)}</span><span class="button-arrow">↗</span></button>`
           : `<button class="primary-button" id="refreshBuildButton" type="button"><span>刷新开发状态</span></button>`;
-  const panelCopy = previewReady ? stage.copy : backend.status === "awaiting_external_coding" ? "老师工具包已经生成当前阶段任务。请由外部编码工具完成任务，完成后点击“编码完成，运行阶段自检”。" : backend.status === "kit_self_check_passed" ? "本阶段自检已通过。请确认阶段结果，系统会调用原始 kit.sh 进入下一阶段并生成新的阶段任务。" : "这里展示 API、数据模型、测试和运行时结果。验收通过只代表进入产品预览，不代表预览已经验证。";
+  const panelCopy = previewReady ? stage.copy : backend.status === "awaiting_external_coding" ? "老师工具包已经生成当前阶段任务。请由外部编码工具完成任务，完成后点击“编码完成，运行阶段自检”。" : selfCheckFailed ? "本阶段自检没有通过。先根据下方输出修复开发项目，再重新运行阶段自检。" : backend.status === "kit_self_check_passed" ? "本阶段自检已通过。请确认阶段结果，系统会调用原始 kit.sh 进入下一阶段并生成新的阶段任务。" : "这里展示 API、数据模型、测试和运行时结果。验收通过只代表进入产品预览，不代表预览已经验证。";
   const newRequirementForm = previewReady && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">新版本 · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经验收的版本。</p><textarea id="newRequirementInput" aria-label="下一版需求" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
-  $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">${headingKicker}</span><h3>${title}</h3></div>${headingChip}</div><p class="panel-copy">${escapeHtml(panelCopy)}</p>${preview}<details class="delivery-details" ${previewReady ? "" : "open"}><summary>交付详情<span>接口、任务与检查</span></summary><div class="plan-grid"><div class="plan-block"><h4>API 与数据</h4><ul>${listHtml(backend.api_contract || backend.api || ["项目状态接口", "需求与方案确认接口", "预览与验收接口"])}</ul></div><div class="plan-block"><h4>开发任务</h4><ul>${tasks.length ? tasks.map((task) => `<li>${escapeHtml(task.message || task.kind)} · ${escapeHtml(task.status || "进行中")}</li>`).join("") : listHtml(backend.tasks, ["后端任务已创建，等待状态回写"])}</ul></div><div class="plan-block"><h4>测试与恢复</h4><ul>${listHtml(checks, ["结构化 API 测试", "重启恢复待验证", "示例入口已生成"])}</ul></div><div class="plan-block"><h4>完成条件</h4><ul>${listHtml(backend.acceptance || projectIntent(project).acceptance, ["用户能打开示例", "测试结果可查看", "项目状态可恢复"])}</ul></div></div></details>${newRequirementForm}<div class="panel-actions">${action}</div>`;
+  const outputBlock = selfCheckOutput ? `<div class="supplement-box self-check-output"><strong>阶段自检输出</strong><pre>${escapeHtml(selfCheckOutput.slice(-4000))}</pre></div>` : "";
+  $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">${headingKicker}</span><h3>${title}</h3></div>${headingChip}</div><p class="panel-copy">${escapeHtml(panelCopy)}</p>${preview}<details class="delivery-details" ${previewReady ? "" : "open"}><summary>交付详情<span>接口、任务与检查</span></summary><div class="plan-grid"><div class="plan-block"><h4>API 与数据</h4><ul>${listHtml(backend.api_contract || backend.api || ["项目状态接口", "需求与方案确认接口", "预览与验收接口"])}</ul></div><div class="plan-block"><h4>开发任务</h4><ul>${tasks.length ? tasks.map((task) => `<li>${escapeHtml(task.message || task.kind)} · ${escapeHtml(task.status || "进行中")}</li>`).join("") : listHtml(backend.tasks, ["后端任务已创建，等待状态回写"])}</ul></div><div class="plan-block"><h4>测试与恢复</h4><ul>${listHtml(checks, ["结构化 API 测试", "重启恢复待验证", "示例入口已生成"])}</ul></div><div class="plan-block"><h4>完成条件</h4><ul>${listHtml(backend.acceptance || projectIntent(project).acceptance, ["用户能打开示例", "测试结果可查看", "项目状态可恢复"])}</ul></div></div>${outputBlock}</details>${newRequirementForm}<div class="panel-actions">${action}</div>`;
   if (previewReady) {
     $("#openPreviewButton").addEventListener("click", () => openPreview(project));
     $("#startTrialButton").addEventListener("click", () => startTrial(project));
   } else if (verified) $("#acceptanceButton").addEventListener("click", () => acceptBuild(project));
-  else if (backend.status === "awaiting_external_coding") {
+  else if (backend.status === "awaiting_external_coding" || selfCheckFailed) {
     $("#verifyBackendButton").addEventListener("click", () => verifyBackendStage(project));
     $("#refreshBuildButton").addEventListener("click", () => loadProject(project.id));
   } else if (backend.status === "kit_self_check_passed") {
