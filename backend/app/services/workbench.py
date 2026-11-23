@@ -24,6 +24,7 @@ from app.schemas.models import (
     Task,
     Workshop,
     WorkshopMessage,
+    MAX_PLAN_QUESTIONS,
 )
 from app.services import teacher_engine
 from app.services.launch_handoff import deliver_handoff
@@ -36,6 +37,13 @@ V2_AFFECTED_AREA_OPTIONS = [
     QuestionOption(id="B", label="方案和后端", description="改变功能、接口或数据结构"),
     QuestionOption(id="C", label="预览和体验", description="主要改变界面、展示或试用方式"),
 ]
+
+def _limit_plan_questions(review_questions: list[str], questions: list[str]) -> list[str]:
+    review = list(dict.fromkeys(str(item).strip() for item in review_questions if str(item).strip()))
+    remaining = list(dict.fromkeys(str(item).strip() for item in questions if str(item).strip()))
+    if review:
+        return (review + remaining)[:MAX_PLAN_QUESTIONS]
+    return remaining[:MAX_PLAN_QUESTIONS]
 
 
 def now() -> datetime:
@@ -260,12 +268,15 @@ def resume_workshop(store: Store, project_id: str) -> Project:
     if project is None:
         raise KeyError(project_id)
     if project.workshop is not None:
-        if project.status == ProjectStatus.NEEDS_PLAN_CONFIRMATION and project.plan and not project.workshop.answer_questions:
-            project.workshop.answer_questions = [
+        if project.status == ProjectStatus.NEEDS_PLAN_CONFIRMATION and project.plan:
+            source_questions = project.workshop.answer_questions or [
                 str(item).strip() for item in (project.plan.open_questions or []) if str(item).strip()
             ]
+            project.workshop.answer_questions = _limit_plan_questions([], source_questions)
             if not project.workshop.answer_questions and project.workshop.pending:
-                project.workshop.answer_questions = [item.text for item in project.workshop.pending if item.text.strip()]
+                project.workshop.answer_questions = _limit_plan_questions(
+                    [], [item.text for item in project.workshop.pending if item.text.strip()]
+                )
             project.workshop.answer_intro = teacher_engine.answer_intro(project) if project.workshop.answer_questions else ""
             project.questions = []
             return store.upsert_project(project)
@@ -341,7 +352,9 @@ def workshop_chat(store: Store, project_id: str, stage: str, messages: list[Work
         if project.status != ProjectStatus.NEEDS_PLAN_CONFIRMATION:
             raise ValueError("当前没有可回答的方案待确认问题")
         if not workshop.answer_questions and project.plan:
-            workshop.answer_questions = [str(item).strip() for item in project.plan.open_questions if str(item).strip()]
+            workshop.answer_questions = _limit_plan_questions(
+                [], [str(item).strip() for item in project.plan.open_questions if str(item).strip()]
+            )
         if not workshop.answer_questions:
             raise ValueError("当前没有可回答的方案待确认问题")
         events = teacher_engine.answer_chat(project, messages)
@@ -376,7 +389,9 @@ def save_workshop_answers(store: Store, project_id: str, answers: list[dict[str,
     if not rows:
         raise ValueError("请先回答至少一个待确认问题")
     if not workshop.answer_questions and project.plan:
-        workshop.answer_questions = [str(item).strip() for item in project.plan.open_questions if str(item).strip()]
+        workshop.answer_questions = _limit_plan_questions(
+            [], [str(item).strip() for item in project.plan.open_questions if str(item).strip()]
+        )
     allowed = set(workshop.answer_questions)
     for item in rows:
         question = str(item.get("question") or "").strip()
@@ -459,9 +474,11 @@ def _plan_workshop(store: Store, project: Project) -> None:
     # 首次方案生成先让用户处理 PRD 的全部未知项。后续复审把具体审稿意见放到队首，
     # 保留仍未回答的方案缺口，确保每次只补当前真正缺失的部分。
     if review_questions and workshop.decisions:
-        questions = review_questions + questions
+        questions = _limit_plan_questions(review_questions, questions)
     elif not questions and review_questions:
-        questions = review_questions
+        questions = _limit_plan_questions(review_questions, [])
+    else:
+        questions = _limit_plan_questions([], questions)
 
     workshop.answer_questions = questions
     workshop.answer_intro = teacher_engine.answer_intro(project) if questions else ""

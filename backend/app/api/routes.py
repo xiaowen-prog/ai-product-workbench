@@ -8,7 +8,7 @@ from pathlib import Path
 from app.core.config import model_settings
 from pydantic import BaseModel, Field
 
-from app.schemas.models import AcceptanceRequest, AnswerRequest, ConfirmationRequest, CreateProjectRequest, IntentConfirmationRequest, ProjectListResponse, RuntimeActionRequest, TrialFeedbackRequest, WorkshopChatRequest, WorkshopChatSaveRequest, public_project
+from app.schemas.models import AcceptanceRequest, AnswerRequest, ConfirmationRequest, CreateProjectRequest, IntentConfirmationRequest, Project, ProjectListResponse, RuntimeActionRequest, TrialFeedbackRequest, WorkshopChatRequest, WorkshopChatSaveRequest, public_project
 from app.services.preview_runtime import ensure_preview, now as runtime_now, render_runtime_page, run_runtime, verify_runtime
 from teacher_backend.services.model_provider import ModelProviderError
 from app.services import teacher_engine
@@ -83,7 +83,11 @@ def get_model_status(request: Request) -> dict[str, object]:
 
 @router.get("/projects", response_model=ProjectListResponse)
 def list_projects(store: Store = Depends(get_store)) -> ProjectListResponse:
-    return ProjectListResponse(projects=store.list_projects())
+    # 列表也走 public_project，确保旧项目里超过用户批次上限的待确认题
+    # 不会在首页恢复时重新全部展示；原始工作区和数据库内容不被删改。
+    return ProjectListResponse(
+        projects=[Project.model_validate(public_project(project)) for project in store.list_projects()]
+    )
 
 
 @router.post("/projects", status_code=status.HTTP_201_CREATED)

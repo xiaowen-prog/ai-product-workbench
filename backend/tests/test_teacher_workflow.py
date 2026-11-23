@@ -8,6 +8,7 @@ from app.main import create_app
 from app.schemas.models import BackendBuild
 from app.services import teacher_engine
 from app.services.kit_development import advance_kit
+from app.services.workbench import _limit_plan_questions
 
 
 def setup_workflow(tmp_path, monkeypatch, score=86, pending=False, severity=None, review_ok=True):
@@ -95,6 +96,14 @@ def test_teacher_review_blocks_development(tmp_path, monkeypatch, score, severit
     assert client.post(path + "/confirm-plan", json={"confirmed": True}).status_code == 409
     assert client.post(path + "/build").status_code == 422
     assert not (kit / "projects").exists()
+
+
+def test_plan_question_batch_is_capped_at_eighteen():
+    questions = [f"方案待确认问题 {index}" for index in range(21)]
+    assert _limit_plan_questions([], questions) == questions[:18]
+    review = ["审稿追问：用户边界", "审稿追问：验收标准"]
+    assert _limit_plan_questions(review, questions)[:2] == review
+    assert len(_limit_plan_questions(review, questions)) == 18
 
 
 def test_review_score_and_high_severity_are_the_plan_gate(tmp_path, monkeypatch):

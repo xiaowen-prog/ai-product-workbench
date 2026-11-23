@@ -17,6 +17,10 @@ class ProjectStatus(str, Enum):
     TRIAL = "trial"
 
 
+# 用户视角一次只处理这一批方案待确认问题；原始老师工作区仍保留完整清单。
+MAX_PLAN_QUESTIONS = 18
+
+
 class QuestionOption(BaseModel):
     id: str
     label: str
@@ -270,4 +274,8 @@ class ProjectListResponse(BaseModel):
 
 
 def public_project(project: Project) -> dict[str, Any]:
-    return project.model_dump(mode="json")
+    data = project.model_dump(mode="json")
+    workshop = data.get("workshop") or {}
+    if workshop.get("answer_questions"):
+        workshop["answer_questions"] = workshop["answer_questions"][:MAX_PLAN_QUESTIONS]
+    return data
