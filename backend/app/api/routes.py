@@ -61,12 +61,13 @@ def ensure_model_configured(request: Request) -> None:
 def get_model_status(request: Request) -> dict[str, object]:
     settings = model_settings()
     required = bool(request.app.state.require_model)
+    provider = "anthropic-compatible" if settings.base_url.endswith("/anthropic") else "openai-compatible"
     return {
         "configured": bool(settings.api_key),
         "required": required,
         "teacher_workflow": True,
         "can_build": bool(settings.api_key) or not required,
-        "provider": "openai-compatible",
+        "provider": provider,
         "base_url": settings.base_url,
         "model": settings.model,
         "max_retries": settings.max_retries,

@@ -71,10 +71,10 @@ class ProductPlan(BaseModel):
     generated_stack: list[str]
     preview_label: str
     open_questions: list[str]
-    review_score: int = Field(default=84, ge=0, le=100)
-    review_ok: bool = True
+    review_score: int = Field(default=0, ge=0, le=100)
+    review_ok: bool = False
     review_issues: list[str] = Field(default_factory=list)
-    review_summary: str = "方案结构完整，达到 80 分门槛。开放问题记录为后续验证项。"
+    review_summary: str = "独立审稿尚未完成。"
     teacher_workspace_path: str | None = None
     teacher_plan_path: str | None = None
     teacher_handoff_path: str | None = None

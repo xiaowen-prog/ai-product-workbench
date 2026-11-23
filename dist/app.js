@@ -599,7 +599,20 @@ async function sendTeacherChat(project, stage, text, button) {
   try {
     const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/workshop-chat`, { method: "POST", body: JSON.stringify({ stage, messages }) });
     replaceProject(payload.project); render();
-  } catch (error) { restoreAction(button); showError(error.message); }
+  } catch (error) {
+    if (!online) {
+      await loadProject(project.id);
+      const latest = state.current;
+      const latestHistory = stage === "answers" ? list(latest?.workshop?.answer_transcript) : list(latest?.workshop?.transcript);
+      const saved = latestHistory.some((message) => message.role === "user" && String(message.text || "").trim() === value);
+      if (saved) {
+        showError("已检查服务端状态，这条回答已经保存，请继续当前对话。");
+        return;
+      }
+    }
+    restoreAction(button);
+    showError(error.message);
+  }
   finally { state.inflightChats.delete(requestKey); }
 }
 
@@ -662,8 +675,8 @@ function renderPlanConfirmation(project) {
   const modelButton = configured
     ? `<button class="secondary-button" id="realPlanButton" type="button">使用真实模型重生成</button>`
     : `<button class="secondary-button" id="realPlanButton" type="button" disabled title="当前未配置真实模型">真实模型未配置</button>`;
-  const reviewScore = Number(plan.review_score ?? 84);
-  const reviewOk = plan.review_ok !== false && reviewScore >= 80;
+  const reviewScore = Number(plan.review_score ?? 0);
+  const reviewOk = plan.review_ok === true && reviewScore >= 80;
   const reviewIssues = list(plan.review_issues);
   const reviewPanel = `<div class="requirement-review ${reviewOk ? "is-passed" : ""}"><div class="review-summary"><strong>方案审稿 ${reviewOk ? "通过" : "未通过"}</strong><span>${reviewScore} 分</span></div><p>${escapeHtml(plan.review_summary || "方案需要完成结构化审稿")}</p>${reviewIssues.length ? `<ul>${reviewIssues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("")}</ul>` : ""}</div>`;
   const confirmButton = reviewOk
@@ -689,8 +702,9 @@ function renderWorkshopPlan(project, plan) {
     return `<li><strong>${escapeHtml(label)}</strong> · ${escapeHtml(fact.value || "待确认")} ${fact.status === "待确认" ? "<small>待确认</small>" : ""}</li>`;
   }).join("");
   const pendingCount = questions.length;
-  const ready = plan.review_ok === true && plan.review_score >= 80 && !pendingCount;
-  const reviewBlock = `<div class="plan-block"><h4>独立审稿</h4><strong>${plan.review_ok ? "审稿通过" : "审稿未通过"} · ${Number(plan.review_score || 0)} 分</strong><p>${escapeHtml(plan.review_summary || "")}</p>${plan.review_issues?.length ? `<ul>${listHtml(plan.review_issues)}</ul>` : ""}</div>`;
+  const reviewPassed = plan.review_ok === true && Number(plan.review_score || 0) >= 80;
+  const ready = reviewPassed && !pendingCount;
+  const reviewBlock = `<div class="plan-block"><h4>独立审稿</h4><strong>${reviewPassed ? "审稿通过" : "审稿未通过"} · ${Number(plan.review_score || 0)} 分</strong><p>${escapeHtml(plan.review_summary || "")}</p>${plan.review_issues?.length ? `<ul>${listHtml(plan.review_issues)}</ul>` : ""}</div>`;
   const summary = `<div class="plan-grid"><div class="plan-block"><h4>产品定位</h4><p>${escapeHtml(plan.summary || "")}</p></div><div class="plan-block"><h4>需求事实</h4><ul>${facts || "<li>待生成</li>"}</ul></div><div class="plan-block"><h4>待确认问题</h4><p>${pendingCount ? `还有 ${pendingCount} 个待答问题` : "当前没有待确认问题"}</p></div>${reviewBlock}</div>`;
   const design = data.design || {};
   const details = `<details class="delivery-details"><summary>完整方案<span>五要素、选型、架构与测试</span></summary><div class="plan-grid"><div class="plan-block"><h4>领域建模</h4><ul>${Object.values(data.elements || {}).map((items) => listHtml(items, [])).join("")}</ul></div><div class="plan-block"><h4>组件选型</h4><ul>${listHtml(list(data.components).map((item) => `${item.name} · ${item.decision} · ${item.reason}`), [])}</ul></div><div class="plan-block"><h4>技术与部署</h4><p>${escapeHtml(design.tech_stack_and_deployment || "")}</p><ul>${listHtml(design.security_and_degradation, [])}</ul></div><div class="plan-block"><h4>测试设计</h4><ul>${listHtml(design.testing, [])}</ul></div></div></details>`;

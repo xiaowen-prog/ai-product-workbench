@@ -442,7 +442,7 @@ project.backend.status = backend_verified
 project.status = backend_building
 ```
 
-它不会自动调用 `/build`。
+正式前端收到 `stage_task_ready` 后会立即单次调用 `/build`，把确认后的 PRD 交给原始 idea-to-launch-kit。这个调用属于确认后的开发准备动作，刷新、重新渲染和回读状态都不能再次触发。
 
 前端在方案确认成功后展示“开始开发准备”按钮。用户点击后调用一次：
 
@@ -451,7 +451,7 @@ POST /api/v1/projects/{project_id}/build
 { "execution_mode": "real" }
 ```
 
-刷新、轮询、重新渲染都不能自动重发 `/build`。请求超时先 `GET /projects/{id}` 和 `GET /development` 查询结果。
+请求超时先 `GET /projects/{id}` 和 `GET /development` 查询结果。只有项目仍处于 `stage_task_ready` 时，用户再次点击开发准备才允许重试。
 
 ### 3. `high` 的来源
 

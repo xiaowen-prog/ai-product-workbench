@@ -448,8 +448,9 @@ def _plan_workshop(store: Store, project: Project) -> None:
     )
     if not questions and not review_ok:
         for issue in review.get("issues", []):
-            problem = str(issue.get("problem") or issue.get("section") or "审稿指出一处待补充内容").strip()
-            questions.append(f"审稿追问：{problem}")
+            section = str(issue.get("section") or "方案审稿").strip()
+            problem = str(issue.get("problem") or "审稿指出一处待补充内容").strip()
+            questions.append(f"审稿追问（{section}）：{problem}")
         if not questions:
             questions.append("审稿追问：请补充一条会改变方案判断的事实、边界或验收标准。")
 

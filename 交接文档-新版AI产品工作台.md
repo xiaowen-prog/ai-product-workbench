@@ -44,10 +44,10 @@ dist/app.css
 
 当前反复出现“三个问题”的根因已经定位：
 
-- `backend/teacher_source/blueprint/intake_agent.py` 是动态 Agent 流程，`MAX_ROUNDS = 6`，按 `goal / users / core_loop / boundaries` 检查覆盖率。
-- `backend/teacher_source/blueprint/chat.py` 另有固定三轮 fallback。`intake_events()` 捕获 Agent 异常后，会静默退回三轮固定问题。
+- `backend/teacher_source/blueprint/intake_agent.py` 是动态 Agent 流程，`MAX_ROUNDS = 6`，按 `goal / users / core_loop / deliverable / boundaries / constraints` 检查覆盖率。
+- `backend/teacher_source/blueprint/chat.py` 保留老师独立运行时的固定流程兼容代码。正式本地产品适配器不调用 `intake_events()`，只调用 `run_intake_agent`，因此真实 Agent 失败会保留错误并停在当前阶段。
 - 本地适配器之前错误地调用了 `chat.intake_events()`，所以真实 Agent 发生异常时，用户看到的是“三个问题”，而不是原始动态流程。
-- 这不是老师流程本来只有三个问题，而是错误回退被当成了正常成功。
+- 旧的三轮回退和四维提前收尾都不能作为正式本地产品的成功路径。
 
 当前适配器已改为直接调用 `blueprint.intake_agent.run_intake_agent`。真实 Agent 失败时应抛出明确错误，不能再静默退回固定三轮。
 
