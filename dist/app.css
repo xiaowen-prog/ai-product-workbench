@@ -252,6 +252,9 @@ textarea:hover, input:hover, select:hover { border-color: var(--border-hover); }
 .plan-progress-row.is-done .plan-progress-marker { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .plan-progress-row.is-failed .plan-progress-marker { color: var(--danger); border-color: var(--danger); }
 .plan-progress-row.is-failed strong { color: var(--danger); }
+.plan-progress-next { margin-top: 18px; padding: 16px 18px; border: 1px solid var(--border-accent); border-radius: 12px; background: var(--accent-soft); }
+.plan-progress-next strong { display: block; color: var(--accent); font-size: 14px; }
+.plan-progress-next p { margin: 5px 0 12px; color: var(--text-secondary); font-size: 13px; }
 .plan-progress-empty { padding: 18px 0; color: var(--text-tertiary); list-style: none; }
 
 .question-options { display: grid; gap: 8px; }

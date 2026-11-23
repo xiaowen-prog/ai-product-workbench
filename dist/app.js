@@ -646,7 +646,14 @@ function renderPlanProgress(project, progress = {}) {
   const review = progress.review || {};
   const reviewText = review.score == null ? "独立审稿尚未开始" : `独立审稿 ${Number(review.score)} 分 · ${review.ok ? "通过" : "待处理"}`;
   const statusText = progress.status === "failed" ? "方案推导中断" : progress.status === "done" ? "方案推导完成" : "正在推导方案";
-  $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 方案推导</span><h3>${escapeHtml(statusText)}</h3></div><span class="status-chip ${progress.status === "failed" ? "is-revise" : progress.status === "done" ? "is-done" : "is-progress"}">${escapeHtml(reviewText)}</span></div><p class="panel-copy">这里沿用老师项目的阶段进度。需求拆解、架构设计和独立审稿完成后，才会整理待确认问题和交接文档。</p><ol class="plan-progress-list">${stageRows}</ol>${progress.status === "failed" ? `<div class="supplement-box"><strong>方案推导需要重试</strong><p>当前阶段已经保留在本地工作区，重新执行会优先复用已完成的阶段。</p></div>` : ""}`;
+  const done = progress.status === "done";
+  const reviewPassed = review.ok === true && Number(review.score || 0) >= 80;
+  const nextCopy = done
+    ? (reviewPassed ? "独立审稿已通过。请打开方案，确认后才能交接进入后端开发。" : "独立审稿未达到 80 分，不能确认方案。请打开待确认问题，补充后重新整理 PRD。")
+    : "这里沿用老师项目的阶段进度。需求拆解、架构设计和独立审稿完成后，才会整理待确认问题和交接文档。";
+  const nextAction = done ? `<div class="plan-progress-next"><strong>${reviewPassed ? "下一步：确认方案" : "下一步：补充待确认问题"}</strong><p>${reviewPassed ? "查看完整方案并点击确认，进入后端开发准备。" : "查看审稿指出的缺口，回答后重新整理 PRD。"}</p><button class="primary-button" id="openPlanResultButton" type="button">${reviewPassed ? "查看方案并确认" : "查看待确认问题"}<span class="button-arrow">↗</span></button></div>` : "";
+  $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 方案推导</span><h3>${escapeHtml(statusText)}</h3></div><span class="status-chip ${progress.status === "failed" ? "is-revise" : progress.status === "done" ? (reviewPassed ? "is-done" : "is-revise") : "is-progress"}">${escapeHtml(reviewText)}</span></div><p class="panel-copy">${escapeHtml(nextCopy)}</p><ol class="plan-progress-list">${stageRows}</ol>${nextAction}${progress.status === "failed" ? `<div class="supplement-box"><strong>方案推导需要重试</strong><p>当前阶段已经保留在本地工作区，重新执行会优先复用已完成的阶段。</p></div>` : ""}`;
+  $("#openPlanResultButton")?.addEventListener("click", () => loadProject(project.id));
 }
 
 function startPlanProgress(project) {
