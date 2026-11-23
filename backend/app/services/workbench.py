@@ -3,6 +3,7 @@ from __future__ import annotations
 from difflib import SequenceMatcher
 from hashlib import sha256
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
 
 from app.schemas.models import (
