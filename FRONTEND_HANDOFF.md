@@ -126,6 +126,12 @@ POST /api/v1/projects/{project_id}/confirm-intent
 ```
 
 ```http
+GET /api/v1/projects/{project_id}/plan-progress
+```
+
+该只读接口返回老师工作区的需求拆解、组件选型、领域建模与架构设计、独立审稿、待确认问题和文档交接阶段，以及已经落盘的审稿分数和问题。方案推导期间前端轮询它，推导完成后以 `confirm-intent` 的项目响应为准。
+
+```http
 POST /api/v1/projects/{project_id}/confirm-plan
 { "confirmed": true, "note": "方案确认" }
 ```
