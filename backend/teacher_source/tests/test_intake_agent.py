@@ -4,11 +4,11 @@ import json
 import pytest
 
 from blueprint import chat
-from blueprint.intake_agent import MAX_ROUNDS, coverage, ready, run_intake_agent
+from blueprint.intake_agent import MAX_ROUNDS, MUST_HAVE, coverage, ready, run_intake_agent
 from blueprint.llm import Budget
 
 FULL = {"goal": "家长愿意连续用一周", "users": "小学生家长", "core_loop": "拍照 → 识别玩具 → 生成剧本",
-        "deliverable": "一份剧本", "boundaries": "照片不保存", "constraints": ""}
+        "deliverable": "一份剧本", "boundaries": "照片不保存", "constraints": "本地运行"}
 
 
 def use(name, args, uid):
@@ -60,6 +60,10 @@ def test_coverage_marks_unsure_and_missing():
     assert not ready(coverage({**FULL, "boundaries": ""}))         # 红线没问过不能收尾
 
 
+def test_all_six_dimensions_are_required_before_draft():
+    assert tuple(MUST_HAVE) == tuple(FULL)
+
+
 # ---------------------------------------------------------------------------
 # agent 本身
 # ---------------------------------------------------------------------------
@@ -75,7 +79,7 @@ def test_draft_is_rejected_while_must_have_missing():
     result = run_intake_agent("用户：做个剧本生成器", rounds_asked=1, user_wants_draft=False, runner=runner)
     assert result == {"action": "ask", "question": "给谁用？", "suggestions": []}
     sent_back = runner.seen[2][-1]["content"]
-    assert "还缺必须信息（用户）" in sent_back[0]["content"]
+    assert "还缺需求维度（用户" in sent_back[0]["content"]
     assert sent_back[-1]["type"] == "text" and "轮数或费用已用完" in sent_back[-1]["text"]   # 收尾提醒并进同一条消息
 
 

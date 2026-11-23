@@ -1,7 +1,7 @@
 """新建产品的追问 agent：自己判断还缺什么、问几轮，信息够了就整理成需求草稿。
 
 每次用户回复都从整段对话重新判断（对话是无状态的，前端每次发全量）。能不能收尾不交给模型自己说了算：
-它先用 check_coverage 把六个维度各写一句，由代码按固定规则判断三项必须信息是否齐全。
+它先用 check_coverage 把六个维度各写一句，由代码按固定规则判断六项信息是否都已覆盖。
 """
 
 from __future__ import annotations
@@ -12,9 +12,8 @@ from blueprint.agent import Tool, run_agent
 from blueprint.knowledge import FACT_KEYS, load_prompt
 
 MAX_ROUNDS = 6                                    # 最多问几轮，问满就只能整理草稿
-# 这四项都有了（或用户明确说不确定）才能整理草稿。边界放进来是因为真实测试里，
-# 一句话写得长的想法会被直接整理，隐私、费用这类红线一次都没问。
-MUST_HAVE = ("goal", "users", "core_loop", "boundaries")
+# 六个需求维度都被覆盖，或用户明确说不确定，才能整理草稿。
+MUST_HAVE = tuple(FACT_KEYS)
 UNSURE = ("不确定", "不知道", "没想好", "还没想", "跳过", "待定", "说不清")
 MAX_SUGGESTIONS = 3
 
@@ -72,7 +71,7 @@ def run_intake_agent(transcript_text: str, rounds_asked: int, user_wants_draft: 
         state["status"] = status
         lines = [f"{_LABEL[key]}：{value}" for key, value in status.items()]
         missing = [_LABEL[key] for key in MUST_HAVE if status[key] == "缺"]
-        verdict = ("必须信息（目标、用户、核心闭环、边界）都有了，可以整理草稿；其余维度缺的写进「还没想清楚」。"
+        verdict = ("六个需求维度（目标、用户、核心闭环、交付物、边界、约束）都有了，可以整理草稿。"
                    if not missing else f"还缺必须信息：{'、'.join(missing)}。先问其中最要紧的一项。")
         if forced:
             verdict = "用户要求整理，或已经问满轮数：直接整理草稿，缺的写进「还没想清楚」。"
@@ -95,7 +94,7 @@ def run_intake_agent(transcript_text: str, rounds_asked: int, user_wants_draft: 
                 errors.append("整理草稿前先调用 check_coverage 盘点信息")
             elif not ready(state["status"]):
                 missing = [_LABEL[k] for k in MUST_HAVE if state["status"][k] == "缺"]
-                errors.append(f"还缺必须信息（{'、'.join(missing)}），不能整理草稿，请改为 action=ask 追问")
+                errors.append(f"还缺需求维度（{'、'.join(missing)}），不能整理草稿，请改为 action=ask 追问")
         return errors
 
     tools = [Tool("check_coverage", "把对话里已知的六个维度各写一句（没提到写空字符串，用户说不确定就写「用户不确定」），"
