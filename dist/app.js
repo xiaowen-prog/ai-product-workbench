@@ -817,11 +817,13 @@ function renderWorkshopAnswers(project, plan) {
 function renderBackend(project, verified) {
   showOnly("#previewPanel");
   const backend = projectBackend(project); const tasks = list(project.tasks);
-  if (backend.status === "prd_health_check" || backend.status === "stage_task_ready") {
+  if (backend.status === "prd_health_check" || backend.status === "stage_task_ready" || backend.status === "stage_advanced") {
     const id = encodeURIComponent(project.id);
-    const title = backend.status === "stage_task_ready" ? "PRD 已交接，准备开发" : "PRD 体检";
-    const copy = backend.status === "stage_task_ready" ? "方案确认已完成。下一步只调用一次真实 /build，读取老师 idea-to-launch-kit 的本阶段任务。" : "已交接这次确认的 PRD 和方案。Idea to Launch 已建立阶段 0 任务。";
-    $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块二 · 阶段 0</span><h3>${title}</h3></div><span class="status-chip is-progress">等待开发准备</span></div><p class="panel-copy">${copy}</p><div class="plan-grid"><div class="plan-block"><h4>已交接</h4><ul>${listHtml(backend.checks)}</ul></div><div class="plan-block"><h4>开发阶段</h4><ul>${listHtml(backend.acceptance)}</ul></div></div><div class="panel-actions"><a class="secondary-button" href="/api/v1/projects/${id}/handoff">下载交接包</a><button class="primary-button" id="startBackendButton" type="button"><span>开始后端开发准备</span><span class="button-arrow">↗</span></button><button class="secondary-button" id="refreshBuildButton" type="button">刷新状态</button></div>`;
+    const stage = backend.kit_stage || "阶段0";
+    const title = backend.status === "stage_advanced" ? `${stage} 已准备` : backend.status === "stage_task_ready" ? `${stage} 待确认` : "PRD 体检";
+    const copy = backend.status === "stage_advanced" ? `上一阶段已验收。请确认 ${stage} 任务后再开始这一阶段的外部开发。` : backend.status === "stage_task_ready" ? `方案确认已完成。请先确认 ${stage}，再把老师生成的本阶段任务交给外部编码工具。` : "已交接这次确认的 PRD 和方案。Idea to Launch 已建立阶段任务。";
+    const startLabel = backend.status === "stage_advanced" ? `确认 ${stage}，开始开发` : `确认 ${stage}，开始开发`;
+    $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块二 · ${escapeHtml(stage)}</span><h3>${title}</h3></div><span class="status-chip is-confirm">等你确认</span></div><p class="panel-copy">${copy}</p><div class="plan-grid"><div class="plan-block"><h4>已交接</h4><ul>${listHtml(backend.checks)}</ul></div><div class="plan-block"><h4>本阶段任务</h4><p class="stage-task-copy">${escapeHtml(backend.kit_task || "老师工具包已生成任务，点击确认后开始开发")}</p></div><div class="plan-block"><h4>后续阶段</h4><ul>${listHtml(backend.acceptance)}</ul></div></div><div class="panel-actions"><a class="secondary-button" href="/api/v1/projects/${id}/handoff">下载交接包</a><button class="primary-button" id="startBackendButton" type="button"><span>${startLabel}</span><span class="button-arrow">↗</span></button><button class="secondary-button" id="refreshBuildButton" type="button">刷新状态</button></div>`;
     $("#startBackendButton").addEventListener("click", () => startBackendBuild(project));
     $("#refreshBuildButton").addEventListener("click", () => loadProject(project.id));
     return;
@@ -832,12 +834,12 @@ function renderBackend(project, verified) {
   const previewLabel = stage.previewLabel;
   const previewState = stage.previewState;
   const preview = previewReady && project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(previewReady ? previewLabel : project.plan.preview_label || "产品示例")}</span><span>${escapeHtml(previewReady ? previewState : verified ? "等你确认" : "后端开发中")}</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || project.answers?.core_action || (online ? "查看示例结果" : "打开运行时预览"))} ↗</span></div></div>` : "";
-  const title = previewReady ? stage.title : verified ? "后端已生成，等你验收" : backend.status === "awaiting_external_coding" ? "等待外部编码工具完成" : "等待后端开发准备";
-  const headingKicker = previewReady ? "模块二 · 产品预览" : verified ? "模块二 · 后端验收" : backend.status === "awaiting_external_coding" ? "模块二 · 开发等待" : "模块二 · 后端开发";
+  const title = previewReady ? stage.title : verified ? "后端已生成，等你验收" : backend.status === "awaiting_external_coding" ? "等待外部编码工具完成" : backend.status === "kit_self_check_passed" ? `${backend.kit_stage || "本阶段"} 自检通过，等你确认` : "等待后端开发准备";
+  const headingKicker = previewReady ? "模块二 · 产品预览" : verified ? "模块二 · 后端验收" : backend.status === "awaiting_external_coding" ? "模块二 · 开发等待" : backend.status === "kit_self_check_passed" ? `模块二 · ${backend.kit_stage || "本阶段"}验收` : "模块二 · 后端开发";
   const chipClass = { "preview-verified": "is-preview-verified", "preview-pending": "is-preview-pending", "example-viewed": "is-confirm", "example-pending": "is-progress" }[stage.chipKind] || "is-progress";
   const headingChip = previewReady
     ? `<span class="status-chip ${chipClass}">${escapeHtml(stage.chip)}</span>`
-    : verified ? '<span class="status-chip is-confirm">等你确认</span>' : '<span class="status-chip is-progress">进行中</span>';
+    : verified || backend.status === "kit_self_check_passed" ? '<span class="status-chip is-confirm">等你确认</span>' : '<span class="status-chip is-progress">进行中</span>';
   const startTrialButton = stage.startEnabled
     ? `<button class="primary-button" id="startTrialButton" type="button"><span>开始试用</span><span class="button-arrow">↗</span></button>`
     : `<button class="secondary-button" id="startTrialButton" type="button" disabled title="${escapeHtml(stage.startDisabledReason)}">开始试用</button>`;
@@ -846,19 +848,29 @@ function renderBackend(project, verified) {
       ? `<button class="secondary-button" id="openPreviewButton" type="button">${escapeHtml(stage.openLabel)}</button>`
       : `<button class="primary-button" id="openPreviewButton" type="button"><span>${escapeHtml(stage.openLabel)}</span><span class="button-arrow">↗</span></button>`)
     : "";
+  const nextStage = nextKitStage(backend.kit_stage);
   const action = previewReady
     ? (stage.startEnabled ? `${openPreviewButton}${startTrialButton}` : `${startTrialButton}${openPreviewButton}`)
     : verified
       ? '<button class="primary-button" id="acceptanceButton" type="button"><span>验收通过，进入产品预览</span><span class="button-arrow">↗</span></button>'
-      : `<button class="primary-button" id="refreshBuildButton" type="button"><span>${backend.status === "awaiting_external_coding" ? "刷新外部开发状态" : "刷新开发状态"}</span></button>`;
-  const panelCopy = previewReady ? stage.copy : backend.status === "awaiting_external_coding" ? "老师工具包已经生成当前阶段任务。请由外部编码工具完成任务并运行原始 kit.sh 自检，工作台不会把等待态画成开发完成。" : "这里展示 API、数据模型、测试和运行时结果。验收通过只代表进入产品预览，不代表预览已经验证。";
+      : backend.status === "awaiting_external_coding"
+        ? `<button class="primary-button" id="verifyBackendButton" type="button"><span>编码完成，运行阶段自检</span><span class="button-arrow">↗</span></button><button class="secondary-button" id="refreshBuildButton" type="button">刷新外部开发状态</button>`
+        : backend.status === "kit_self_check_passed"
+          ? `<button class="primary-button" id="acceptStageButton" type="button"><span>确认 ${escapeHtml(backend.kit_stage || "本阶段")}，进入 ${escapeHtml(nextStage)}</span><span class="button-arrow">↗</span></button>`
+          : `<button class="primary-button" id="refreshBuildButton" type="button"><span>刷新开发状态</span></button>`;
+  const panelCopy = previewReady ? stage.copy : backend.status === "awaiting_external_coding" ? "老师工具包已经生成当前阶段任务。请由外部编码工具完成任务，完成后点击“编码完成，运行阶段自检”。" : backend.status === "kit_self_check_passed" ? "本阶段自检已通过。请确认阶段结果，系统会调用原始 kit.sh 进入下一阶段并生成新的阶段任务。" : "这里展示 API、数据模型、测试和运行时结果。验收通过只代表进入产品预览，不代表预览已经验证。";
   const newRequirementForm = previewReady && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">新版本 · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经验收的版本。</p><textarea id="newRequirementInput" aria-label="下一版需求" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
   $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">${headingKicker}</span><h3>${title}</h3></div>${headingChip}</div><p class="panel-copy">${escapeHtml(panelCopy)}</p>${preview}<details class="delivery-details" ${previewReady ? "" : "open"}><summary>交付详情<span>接口、任务与检查</span></summary><div class="plan-grid"><div class="plan-block"><h4>API 与数据</h4><ul>${listHtml(backend.api_contract || backend.api || ["项目状态接口", "需求与方案确认接口", "预览与验收接口"])}</ul></div><div class="plan-block"><h4>开发任务</h4><ul>${tasks.length ? tasks.map((task) => `<li>${escapeHtml(task.message || task.kind)} · ${escapeHtml(task.status || "进行中")}</li>`).join("") : listHtml(backend.tasks, ["后端任务已创建，等待状态回写"])}</ul></div><div class="plan-block"><h4>测试与恢复</h4><ul>${listHtml(checks, ["结构化 API 测试", "重启恢复待验证", "示例入口已生成"])}</ul></div><div class="plan-block"><h4>完成条件</h4><ul>${listHtml(backend.acceptance || projectIntent(project).acceptance, ["用户能打开示例", "测试结果可查看", "项目状态可恢复"])}</ul></div></div></details>${newRequirementForm}<div class="panel-actions">${action}</div>`;
   if (previewReady) {
     $("#openPreviewButton").addEventListener("click", () => openPreview(project));
     $("#startTrialButton").addEventListener("click", () => startTrial(project));
   } else if (verified) $("#acceptanceButton").addEventListener("click", () => acceptBuild(project));
-  else $("#refreshBuildButton").addEventListener("click", () => loadProject(project.id));
+  else if (backend.status === "awaiting_external_coding") {
+    $("#verifyBackendButton").addEventListener("click", () => verifyBackendStage(project));
+    $("#refreshBuildButton").addEventListener("click", () => loadProject(project.id));
+  } else if (backend.status === "kit_self_check_passed") {
+    $("#acceptStageButton").addEventListener("click", () => acceptDevelopmentStage(project));
+  } else $("#refreshBuildButton").addEventListener("click", () => loadProject(project.id));
 }
 
 function renderTrial(project) {
@@ -1054,6 +1066,33 @@ async function startBackendBuild(project) {
   }
 }
 
+function nextKitStage(stage) {
+  const match = String(stage || "").match(/^阶段(\d+)(?:-\d+)?$/);
+  if (!match) return "完成";
+  const number = Number(match[1]);
+  return number >= 2 ? "完成" : `阶段${number + 1}`;
+}
+
+async function verifyBackendStage(project) {
+  const button = $("#verifyBackendButton");
+  setActionBusy(button, "正在运行阶段自检"); clearError();
+  try {
+    const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/development/verify`, { method: "POST" });
+    replaceProject(payload.project); render();
+  } catch (error) { restoreAction(button); showError(error.message); render(); }
+}
+
+async function acceptDevelopmentStage(project) {
+  const button = $("#acceptStageButton");
+  setActionBusy(button, "正在确认阶段"); clearError();
+  try {
+    const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/development/accept`, {
+      method: "POST", body: JSON.stringify({ passed: true, next_stage: nextKitStage(projectBackend(project).kit_stage) })
+    });
+    replaceProject(payload.project); render();
+  } catch (error) { restoreAction(button); showError(error.message); render(); }
+}
+
 async function confirmPlan(project, confirmed = true) {
   clearError();
   const button = $("#confirmPlanButton");
@@ -1063,10 +1102,6 @@ async function confirmPlan(project, confirmed = true) {
     else {
       const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/confirm-plan`, { method: "POST", body: JSON.stringify({ confirmed }) });
       replaceProject(payload.project);
-      if (confirmed && payload.project?.backend?.status === "stage_task_ready") {
-        await startBackendBuild(payload.project);
-        return;
-      }
     }
     render();
   } catch (error) { restoreAction(button); showError(error.message); }
