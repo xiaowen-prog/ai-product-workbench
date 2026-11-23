@@ -96,6 +96,8 @@ def run_intake_agent(transcript_text: str, rounds_asked: int, user_wants_draft: 
             elif not ready(state["status"]):
                 missing = [_LABEL[k] for k in MUST_HAVE if state["status"][k] == "缺"]
                 errors.append(f"还缺需求维度（{'、'.join(missing)}），不能整理草稿，请改为 action=ask 追问")
+            elif rounds_asked < MAX_ROUNDS:
+                errors.append(f"初始需求澄清还未完成 6 轮（当前第 {rounds_asked} 轮），请继续 action=ask")
         return errors
 
     tools = [Tool("check_coverage", "把对话里已知的六个维度各写一句（没提到写空字符串，用户说不确定就写「用户不确定」），"

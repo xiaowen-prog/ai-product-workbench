@@ -70,7 +70,7 @@ def test_all_six_dimensions_are_required_before_draft():
 
 def test_complete_idea_goes_straight_to_draft():
     runner = ScriptRunner([coverage_call(FULL), draft()])
-    result = run_intake_agent("用户：（完整的想法）", rounds_asked=0, user_wants_draft=False, runner=runner)
+    result = run_intake_agent("用户：（完整的想法）", rounds_asked=MAX_ROUNDS, user_wants_draft=False, runner=runner)
     assert result["action"] == "draft" and result["name"] == "玩具剧场"
 
 
@@ -84,8 +84,8 @@ def test_draft_is_rejected_while_must_have_missing():
 
 
 def test_draft_without_coverage_check_is_rejected():
-    runner = ScriptRunner([draft("f1"), coverage_call(FULL, "c2"), draft("f3")])
-    assert run_intake_agent("用户：x", 0, False, runner)["action"] == "draft"
+    runner = ScriptRunner([draft("f1"), coverage_call(FULL, "c2"), ask("还要确认什么？", uid="f3")])
+    assert run_intake_agent("用户：x", 0, False, runner, agent_max_turns=4)["action"] == "ask"
     assert "先调用 check_coverage" in runner.seen[1][-1]["content"][0]["content"]
 
 
@@ -137,7 +137,9 @@ def test_ask_event_streams_question_and_adds_fixed_buttons():
 
 
 def test_draft_event_shows_confirm_card():
-    out = events(AgentChat([coverage_call(FULL), draft()]), "完整想法")
+    out = events(AgentChat([coverage_call(FULL), draft()]),
+                 "完整想法", "问题1", "回答1", "问题2", "回答2", "问题3", "回答3",
+                 "问题4", "回答4", "问题5", "回答5", "问题6", chat.FINISH_INTAKE)
     assert out[0]["delta"] == chat.DRAFT_INTRO
     assert out[1] == {"type": "tool", "name": "confirm_product",
                       "args": {"name": "玩具剧场", "idea": "### 一句话想法\n拍照生成剧本"}}
