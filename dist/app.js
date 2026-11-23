@@ -649,14 +649,17 @@ function renderPlanProgress(project, progress = {}) {
   const done = progress.status === "done";
   const reviewPassed = review.ok === true && Number(review.score || 0) >= 80;
   const answerDraftPending = list(project.workshop?.answer_draft).length > 0;
+  const reviewFollowUpPending = list(project.workshop?.answer_questions).some((item) => String(item || "").startsWith("审稿追问"));
   const nextCopy = done
     ? (reviewPassed
       ? "独立审稿已通过。请打开方案，确认后才能交接进入后端开发。"
       : answerDraftPending
-        ? "这批方案问题已经回答完，先把回答写回 PRD 并重新审阅；只有复审仍未通过，才会生成定向追问。"
+        ? (reviewFollowUpPending
+          ? "这些是独立审稿指出的定向缺口。请先写回回答并重新审稿，不会回到上一批方案问题。"
+          : "这批方案问题已经回答完，先把回答写回 PRD 并重新审阅；只有复审仍未通过，才会生成定向追问。")
         : "独立审稿未达到 80 分，不能确认方案。请打开审稿指出的具体缺口，重新回答后整理 PRD。")
     : "这里沿用老师项目的阶段进度。需求拆解、架构设计和独立审稿完成后，才会整理待确认问题和交接文档。";
-  const nextAction = done ? `<div class="plan-progress-next"><strong>${reviewPassed ? "下一步：确认方案" : answerDraftPending ? "下一步：写回这批回答" : "下一步：回答审稿缺口"}</strong><p>${reviewPassed ? "查看完整方案并点击确认，进入后端开发准备。" : answerDraftPending ? "先点击“重新整理 PRD”，系统才会重新审稿并决定是否需要定向追问。" : "查看审稿指出的缺口，回答后重新整理 PRD。"}</p><button class="primary-button" id="openPlanResultButton" type="button">${reviewPassed ? "查看方案并确认" : answerDraftPending ? "继续整理这批回答" : "查看定向追问"}<span class="button-arrow">↗</span></button></div>` : "";
+  const nextAction = done ? `<div class="plan-progress-next"><strong>${reviewPassed ? "下一步：确认方案" : answerDraftPending ? (reviewFollowUpPending ? "下一步：重新审稿" : "下一步：写回这批回答") : "下一步：回答审稿缺口"}</strong><p>${reviewPassed ? "查看完整方案并点击确认，进入后端开发准备。" : answerDraftPending ? (reviewFollowUpPending ? "点击“重新审稿”，写回这些定向回答并重新评分。" : "先点击“重新整理 PRD”，系统才会重新审稿并决定是否需要定向追问。") : "查看审稿指出的缺口，回答后重新整理 PRD。"}</p><button class="primary-button" id="openPlanResultButton" type="button">${reviewPassed ? "查看方案并确认" : answerDraftPending ? (reviewFollowUpPending ? "继续重新审稿" : "继续整理这批回答") : "查看定向追问"}<span class="button-arrow">↗</span></button></div>` : "";
   $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 方案推导</span><h3>${escapeHtml(statusText)}</h3></div><span class="status-chip ${progress.status === "failed" ? "is-revise" : progress.status === "done" ? (reviewPassed ? "is-done" : "is-revise") : "is-progress"}">${escapeHtml(reviewText)}</span></div><p class="panel-copy">${escapeHtml(nextCopy)}</p><ol class="plan-progress-list">${stageRows}</ol>${nextAction}${progress.status === "failed" ? `<div class="supplement-box"><strong>方案推导需要重试</strong><p>当前阶段已经保留在本地工作区，重新执行会优先复用已完成的阶段。</p></div>` : ""}`;
   $("#openPlanResultButton")?.addEventListener("click", () => {
     state.planProgressToken = Number(state.planProgressToken || 0) + 1;
@@ -787,13 +790,17 @@ function renderWorkshopAnswers(project, plan) {
   const workshop = project.workshop || {};
   const questions = list(workshop.answer_questions).length ? list(workshop.answer_questions) : list(plan.open_questions);
   const draft = list(workshop.answer_draft);
+  const reviewFollowUp = questions.some((item) => String(item || "").startsWith("审稿追问"));
   const intro = !list(workshop.answer_transcript).length && questions.length ? `<div class="teacher-chat-message is-assistant"><span class="teacher-chat-role">Agent 工坊</span><p>${escapeHtml(workshop.answer_intro || `方案里有 ${questions.length} 个还没想清楚的问题，我们一题一题过。想好的直接回答，拿不准可以点“帮我想想”。`)}</p></div>` : "";
-  const draftCard = draft.length ? `<div class="teacher-chat-draft"><strong>这些回答已经收齐</strong>${draft.map((item) => `<p><b>${escapeHtml(item.question || "")}</b><br />${escapeHtml(item.answer || "")}</p>`).join("")}<button class="primary-button" id="saveWorkshopAnswersButton" type="button"><span>重新整理 PRD</span><span class="button-arrow">↗</span></button></div>` : "";
+  const draftCard = draft.length ? `<div class="teacher-chat-draft"><strong>${reviewFollowUp ? "审稿缺口回答已经收齐" : "这些回答已经收齐"}</strong>${draft.map((item) => `<p><b>${escapeHtml(item.question || "")}</b><br />${escapeHtml(item.answer || "")}</p>`).join("")}<button class="primary-button" id="saveWorkshopAnswersButton" type="button"><span>${reviewFollowUp ? "重新审稿" : "重新整理 PRD"}</span><span class="button-arrow">↗</span></button></div>` : "";
   const countLabel = questions.length ? `${questions.length} 条` : "动态";
   const answerComposer = draft.length ? "" : teacherChatComposer("answers");
   const answerSuggestions = draft.length ? "" : `<div class="teacher-suggestions">${renderTeacherSuggestions(project, "answers")}</div>`;
   const panel = $("#questionPanel");
-  panel.innerHTML = `<div class="panel-heading"><div><span class="section-kicker">方案待确认问题 · ${countLabel}</span><h3>${draft.length ? "回答已收齐" : "继续和老师对话"}</h3></div><span class="status-chip is-confirm">${draft.length ? "等待重新整理 PRD" : "统一评分前必须答完"}</span></div><p class="panel-copy">${draft.length ? "请点击“重新整理 PRD”，系统会把这些回答写回方案并重新审阅。" : "老师会按原始方案问题逐题推进。回答、选项、帮我想想、跳过和先保存都在同一段聊天里完成。"}</p>${renderTeacherChat(project, "answers", intro)}${answerSuggestions}${draftCard}${answerComposer}<div class="panel-actions"><button class="secondary-button" id="backToPlanButton" type="button">返回方案概览</button></div>`;
+  const heading = reviewFollowUp ? (draft.length ? "审稿缺口回答已收齐" : "回答审稿指出的缺口") : (draft.length ? "方案问题回答已收齐" : "继续和老师对话");
+  const chip = draft.length ? (reviewFollowUp ? "等待重新审稿" : "等待重新整理 PRD") : (reviewFollowUp ? "复审定向追问" : "统一评分前必须答完");
+  const copy = draft.length ? (reviewFollowUp ? "请点击“重新审稿”，系统会把这些审稿缺口写回 PRD 并重新评分。" : "请点击“重新整理 PRD”，系统会把这些回答写回方案并重新审阅。") : (reviewFollowUp ? "这些问题来自独立审稿缺口，不会重新开启上一批方案问题。" : "老师会按原始方案问题逐题推进。回答、选项、帮我想想、跳过和先保存都在同一段聊天里完成。");
+  panel.innerHTML = `<div class="panel-heading"><div><span class="section-kicker">${reviewFollowUp ? "复审定向追问" : "方案待确认问题"} · ${countLabel}</span><h3>${heading}</h3></div><span class="status-chip is-confirm">${chip}</span></div><p class="panel-copy">${copy}</p>${renderTeacherChat(project, "answers", intro)}${answerSuggestions}${draftCard}${answerComposer}<div class="panel-actions"><button class="secondary-button" id="backToPlanButton" type="button">返回方案概览</button></div>`;
   bindTeacherChat(project, "answers");
   panel.querySelector("#backToPlanButton")?.addEventListener("click", () => renderWorkshopPlan(project, plan));
   panel.querySelector("#saveWorkshopAnswersButton")?.addEventListener("click", async (event) => {
