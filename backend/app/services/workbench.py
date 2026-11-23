@@ -851,7 +851,7 @@ def plan_progress(store: Store, project_id: str) -> dict[str, object]:
         "select": "select.json" in files,
         "design": any(name in files for name in ("design_agent.json", "design_agent_retry.json", "design.json", "design_retry.json")),
         "review": review_file is not None,
-        "questions": "plan.json" in files,
+        "questions": bool(workspace and (workspace / "plan.json").is_file()),
         "documents": bool(workspace and (workspace / "PRD.md").is_file() and (workspace / "方案.md").is_file() and (workspace / "handoff.zip").is_file()),
     }
     failed = sorted(name.removesuffix(".failed.json") for name in files if name.endswith(".failed.json"))
