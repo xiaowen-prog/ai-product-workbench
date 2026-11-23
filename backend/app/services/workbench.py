@@ -448,13 +448,20 @@ def _plan_workshop(store: Store, project: Project) -> None:
         and score >= teacher_engine.MIN_REVIEW_SCORE
         and not any(str(item.get("severity") or "").lower() == "high" for item in review.get("issues", []))
     )
-    if not questions and not review_ok:
+    review_questions: list[str] = []
+    if not review_ok:
         for issue in review.get("issues", []):
             section = str(issue.get("section") or "方案审稿").strip()
             problem = str(issue.get("problem") or "审稿指出一处待补充内容").strip()
-            questions.append(f"审稿追问（{section}）：{problem}")
-        if not questions:
-            questions.append("审稿追问：请补充一条会改变方案判断的事实、边界或验收标准。")
+            review_questions.append(f"审稿追问（{section}）：{problem}")
+        if not review_questions:
+            review_questions.append("审稿追问：请补充一条会改变方案判断的事实、边界或验收标准。")
+    # 首次方案生成先让用户处理 PRD 的全部未知项。后续复审把具体审稿意见放到队首，
+    # 保留仍未回答的方案缺口，确保每次只补当前真正缺失的部分。
+    if review_questions and workshop.decisions:
+        questions = review_questions + questions
+    elif not questions and review_questions:
+        questions = review_questions
 
     workshop.answer_questions = questions
     workshop.answer_intro = teacher_engine.answer_intro(project) if questions else ""
