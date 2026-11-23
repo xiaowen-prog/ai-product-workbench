@@ -103,7 +103,7 @@ def development_chat(store: Store, project_id: str, messages: list[WorkshopMessa
         raise KeyError(project_id)
     if project.status != ProjectStatus.BACKEND_BUILDING or project.backend is None:
         raise ValueError("当前项目还不在开发阶段")
-    if project.backend.status not in {"stage_task_ready", "stage_advanced", "kit_self_check_failed"}:
+    if project.backend.status not in {"stage_task_ready", "stage_advanced", "kit_self_check_failed", "kit_self_check_passed"}:
         raise ValueError("当前阶段已经开始开发或已进入自检，不能重复开启阶段对话")
     events = teacher_engine.development_chat(project, messages)
     project.backend.stage_transcript = list(messages)
@@ -112,7 +112,10 @@ def development_chat(store: Store, project_id: str, messages: list[WorkshopMessa
         project.backend.stage_transcript.append(WorkshopMessage(role="assistant", text=text))
     project.backend.stage_suggestions = _event_suggestions(events)
     if any(event.get("type") == "tool" and event.get("name") == "confirm_stage" for event in events):
-        project.backend.stage_confirmed = True
+        if project.backend.status == "kit_self_check_passed":
+            project.backend.stage_accepted = True
+        else:
+            project.backend.stage_confirmed = True
     project.updated_at = now()
     return store.upsert_project(project), events
 
@@ -129,6 +132,7 @@ def verify_backend_development(store: Store, project_id: str) -> tuple[Project, 
     # AgentRun，也不把模型文本结果当成代码开发完成信号。
     result = verify_kit(project.backend, launch_kit_root())
     project.backend.status = "kit_self_check_passed" if result["ok"] else "kit_self_check_failed"
+    project.backend.stage_accepted = False
     project = store.upsert_project(project)
     return project, result
 
@@ -139,6 +143,8 @@ def accept_backend_stage(store: Store, project_id: str, passed: bool, next_stage
         raise KeyError(project_id)
     if project.status != ProjectStatus.BACKEND_BUILDING or project.backend is None:
         raise ValueError("当前项目还不在老师开发阶段")
+    if not project.backend.stage_accepted:
+        raise ValueError("请先完成本阶段自然语言验收")
     if not passed:
         project.backend.kit_status = "rejected"
         project.backend.status = "kit_self_check_failed"

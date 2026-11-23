@@ -81,6 +81,7 @@ def _migrate_backend(value: Any) -> Any:
         "stage_transcript": value.get("stage_transcript", []) if isinstance(value.get("stage_transcript", []), list) else [],
         "stage_suggestions": _string_list(value.get("stage_suggestions")),
         "stage_confirmed": bool(value.get("stage_confirmed", False)),
+        "stage_accepted": bool(value.get("stage_accepted", False)),
     }
 
 

@@ -290,19 +290,23 @@ def development_chat(project: Project, messages: list[WorkshopMessage]) -> list[
             "suggestions": {"type": "array", "items": {"type": "string"}},
         },
     }
+    post_build = project.backend.status in {"kit_self_check_failed", "kit_self_check_passed"}
+    post_rule = "本阶段代码和自检结果已经产生。请用产品语言解释结果并逐项向产品经理确认；只有产品经理明确说‘验收通过’时才返回 action=ready。" if post_build else "先用自然语言向产品经理提问，产品经理回答并明确确认后，才能开始本阶段开发；每次最多问 5 个必须决定的问题，并给出推荐方向。"
+    result_context = f"\n本阶段自检结果：\n{project.backend.kit_last_output[-6000:]}" if post_build and project.backend.kit_last_output else ""
     prompt = f"""
-你是 idea-to-launch-kit 的阶段产品经理 Agent。现在只处理 {project.backend.kit_stage or '当前阶段'}，不要写代码、不要运行命令、不要声称已经开发完成。
+你是 idea-to-launch-kit 的阶段产品经理 Agent。现在只处理 {project.backend.kit_stage or '当前阶段'}，不要写代码、不要运行命令、不要声称执行了未提供的工具。
 
-根目录手册要求：先用自然语言向产品经理提问，产品经理回答并明确确认后，才能开始本阶段开发；每次最多问 5 个必须决定的问题，并给出推荐方向。
+根目录手册要求：{post_rule}
 
 本阶段任务：
 {project.backend.kit_task}
 
 已有对话：
 {transcript or '（还没有对话）'}
+{result_context}
 
 如果仍缺产品经理决定，返回 action=ask，message 用产品语言提问，suggestions 给 2 到 3 个可直接选择的方向。
-只有产品经理已经明确说“确认、按推荐开始、可以开始开发”等，且本阶段关键决定已覆盖时，才返回 action=ready，message 简要复述将要开始的工作。
+只有产品经理已经明确说“确认、按推荐开始、可以开始开发”等（开发前），或明确说“验收通过”（开发后），才返回 action=ready。
 """.strip()
     try:
         with _runner(chat=True) as runner:

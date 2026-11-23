@@ -122,6 +122,7 @@ class BackendBuild(BaseModel):
     stage_transcript: list[WorkshopMessage] = Field(default_factory=list)
     stage_suggestions: list[str] = Field(default_factory=list)
     stage_confirmed: bool = False
+    stage_accepted: bool = False
 
 
 class Confirmation(BaseModel):
