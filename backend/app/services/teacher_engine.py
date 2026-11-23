@@ -13,6 +13,7 @@ from app.schemas.models import Project, Question, QuestionOption, WorkshopMessag
 
 ENGINE_ROOT = Path(__file__).resolve().parents[2] / "teacher_source"
 MIN_REVIEW_SCORE = 80
+INTAKE_AGENT_ATTEMPTS = 3
 
 
 class TeacherEngineError(RuntimeError):
@@ -127,7 +128,7 @@ def _run_intake_agent(transcript_text: str, rounds_asked: int, user_wants_draft:
     from blueprint.intake_agent import run_intake_agent as teacher_run_intake_agent
 
     last_error: Exception | None = None
-    for attempt in range(2):
+    for attempt in range(INTAKE_AGENT_ATTEMPTS):
         try:
             with _runner(chat=True) as runner:
                 return teacher_run_intake_agent(
@@ -139,7 +140,7 @@ def _run_intake_agent(transcript_text: str, rounds_asked: int, user_wants_draft:
                 )
         except AgentFailed as exc:
             last_error = exc
-            if attempt == 1:
+            if attempt + 1 >= INTAKE_AGENT_ATTEMPTS:
                 raise
     raise last_error or RuntimeError("需求澄清 Agent 未返回结果")
 

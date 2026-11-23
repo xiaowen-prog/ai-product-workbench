@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
+from contextlib import contextmanager
 
-from app.services.teacher_engine import _RetryingMessages
+from app.services.teacher_engine import _RetryingMessages, _load_engine, _run_intake_agent
 
 
 class _FlakyMessages:
@@ -36,3 +37,29 @@ def test_non_retryable_error_keeps_provider_detail():
         _RetryingMessages(messages, attempts=3).create(model="test")
 
     assert messages.calls == 1
+
+
+def test_intake_agent_protocol_failure_gets_three_bounded_attempts(monkeypatch):
+    _load_engine()
+    from blueprint.agent import AgentFailed
+
+    calls = {"count": 0}
+
+    @contextmanager
+    def fake_runner(*, chat=False):
+        assert chat is True
+        yield object()
+
+    def flaky_run(*args, **kwargs):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise AgentFailed("交卷连续 3 次不合格")
+        return {"action": "ask", "question": "给谁用？", "suggestions": []}
+
+    monkeypatch.setattr("app.services.teacher_engine._runner", fake_runner)
+    monkeypatch.setattr("blueprint.intake_agent.run_intake_agent", flaky_run)
+
+    result = _run_intake_agent("用户：我有一个想法", 0, False)
+
+    assert result["action"] == "ask"
+    assert calls["count"] == 3
