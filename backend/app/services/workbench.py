@@ -809,3 +809,86 @@ def generate_real_plan(store: Store, project_id: str, answers: AnswerRequest | N
         raise ValueError("请先确认需求草稿")
     _plan_workshop(store, project)
     return store.upsert_project(project)
+
+
+PLAN_PROGRESS_STAGES = (
+    ("extract", "需求拆解", "把想法拆成目标、用户和核心闭环"),
+    ("select", "组件选型", "按老师规则确定需要的组件"),
+    ("design", "领域建模与架构设计", "整理五要素、工具清单和系统设计"),
+    ("review", "独立审稿", "检查方案矛盾、风险和高严重度问题"),
+    ("questions", "整理待确认问题", "把方案里的未知项改成可回答的问题"),
+    ("documents", "整理 PRD 与交接文档", "写回 PRD、方案和开发交接包"),
+)
+
+
+def plan_progress(store: Store, project_id: str) -> dict[str, object]:
+    """Read the teacher workspace stages without mutating the project."""
+    project = store.get_project(project_id)
+    if project is None:
+        raise KeyError(project_id)
+    root = store.path.parent / "teacher-workspaces" / project.id
+    workspace = None
+    if project.plan and project.plan.teacher_workspace_path:
+        candidate = Path(project.plan.teacher_workspace_path)
+        if candidate.is_dir():
+            workspace = candidate
+    if workspace is None and root.is_dir():
+        candidates = sorted(
+            (path for path in root.rglob("stages") if path.is_dir()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if candidates:
+            workspace = candidates[0].parent
+
+    stage_dir = workspace / "stages" if workspace else None
+    files = {path.name for path in stage_dir.iterdir()} if stage_dir and stage_dir.is_dir() else set()
+    review_file = next((name for name in ("review_retry.json", "review.json") if name in files), None)
+    stage_done = {
+        "extract": "extract.json" in files,
+        "select": "select.json" in files,
+        "design": any(name in files for name in ("design_agent.json", "design_agent_retry.json", "design.json", "design_retry.json")),
+        "review": review_file is not None,
+        "questions": "plan.json" in files,
+        "documents": bool(workspace and (workspace / "PRD.md").is_file() and (workspace / "方案.md").is_file() and (workspace / "handoff.zip").is_file()),
+    }
+    failed = sorted(name.removesuffix(".failed.json") for name in files if name.endswith(".failed.json"))
+    if project.plan and stage_done["documents"]:
+        status = "done"
+    elif failed:
+        status = "failed"
+    elif workspace:
+        status = "running"
+    else:
+        status = "pending"
+    review = {}
+    if workspace and (workspace / "plan.json").is_file():
+        try:
+            payload = json.loads((workspace / "plan.json").read_text(encoding="utf-8"))
+            review = payload.get("review") or {}
+        except (OSError, ValueError):
+            review = {}
+    stages = [
+        {"id": stage_id, "label": label, "description": description, "status": "done" if stage_done[stage_id] else "todo"}
+        for stage_id, label, description in PLAN_PROGRESS_STAGES
+    ]
+    current = next((index for index, item in enumerate(stages) if item["status"] == "todo"), len(stages) - 1)
+    if status == "running" and stages:
+        stages[current]["status"] = "active"
+    if status == "failed" and failed:
+        failed_id = failed[0].split("_")[0]
+        for item in stages:
+            if item["id"] == failed_id:
+                item["status"] = "failed"
+                break
+    return {
+        "project_id": project.id,
+        "status": status,
+        "workspace": str(workspace) if workspace else None,
+        "stages": stages,
+        "review": {
+            "score": review.get("score"),
+            "ok": review.get("ok"),
+            "issues": review.get("issues") or [],
+        },
+    }

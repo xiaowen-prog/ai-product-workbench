@@ -13,7 +13,7 @@ from app.services.preview_runtime import ensure_preview, now as runtime_now, ren
 from teacher_backend.services.model_provider import ModelProviderError
 from app.services import teacher_engine
 from app.services.store import Store
-from app.services.workbench import accept_backend_stage, add_supplement, answer_project, confirm_intent, confirm_plan, create_iteration, create_project, development_status, fill_workshop_options, generate_real_plan, modify_plan, record_acceptance, record_trial_feedback, resume_workshop, start_backend_development, start_trial, verify_backend_development, workshop_chat, save_workshop_answers
+from app.services.workbench import accept_backend_stage, add_supplement, answer_project, confirm_intent, confirm_plan, create_iteration, create_project, development_status, fill_workshop_options, generate_real_plan, modify_plan, plan_progress, record_acceptance, record_trial_feedback, resume_workshop, start_backend_development, start_trial, verify_backend_development, workshop_chat, save_workshop_answers
 
 
 router = APIRouter(prefix="/api/v1")
@@ -139,6 +139,14 @@ def workshop_chat_save_route(project_id: str, request: WorkshopChatSaveRequest, 
 @router.post("/projects/{project_id}/replan")
 def replan(project_id: str, store: Store = Depends(get_store)) -> dict:
     return _workshop_edit(generate_real_plan, store, project_id, None)
+
+
+@router.get("/projects/{project_id}/plan-progress")
+def plan_progress_route(project_id: str, store: Store = Depends(get_store)) -> dict:
+    try:
+        return plan_progress(store, project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
 
 
 def _workshop_edit(operation, store: Store, project_id: str, *args) -> dict:

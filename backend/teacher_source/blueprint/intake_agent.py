@@ -63,7 +63,8 @@ def ready(status: dict[str, str]) -> bool:
 def run_intake_agent(transcript_text: str, rounds_asked: int, user_wants_draft: bool, runner,
                      log: Callable[[str], None] = lambda _m: None, agent_max_turns: int = 3) -> dict:
     """返回 finish 的参数：{"action": "ask", "question", "suggestions"} 或 {"action": "draft", "name", "idea"}。"""
-    forced = user_wants_draft or rounds_asked >= MAX_ROUNDS
+    forced = rounds_asked >= MAX_ROUNDS
+    requested_draft = bool(user_wants_draft)
     state: dict = {"status": None}
 
     def check_coverage(args: dict) -> str:
@@ -101,7 +102,8 @@ def run_intake_agent(transcript_text: str, rounds_asked: int, user_wants_draft: 
                                     "返回哪些已覆盖、哪些还缺、能不能整理草稿。", COVERAGE_SCHEMA, check_coverage)]
     prompt = load_prompt("chat_intake_agent").format(
         transcript=transcript_text, rounds=rounds_asked, max_rounds=MAX_ROUNDS,
-        forced="是：用户点了「信息够了」或已经问满轮数，这一轮必须整理草稿。" if forced else "否",
+        forced=("是：已经问满轮数，这一轮必须整理草稿。" if forced else
+                "用户点了「信息够了」，但六个需求维度仍需先覆盖；" if requested_draft else "否"),
         first_time="是" if rounds_asked == 0 else "否")
     return run_agent("chat_intake_agent", load_prompt("chat_system"), prompt, tools, RESPOND_SCHEMA, runner,
                      log=log, max_turns=agent_max_turns, check=check,

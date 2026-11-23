@@ -620,11 +620,47 @@ function teacherChatComposer(stage) {
   return `<div class="teacher-chat-composer"><textarea id="teacherChatInput" rows="3" placeholder="直接说你的回答，也可以点击下面的建议"></textarea><button class="primary-button" id="teacherChatSend" type="button">发送回答 <span class="button-arrow">↗</span></button></div>`;
 }
 
+function renderPlanProgress(project, progress = {}) {
+  showOnly("#planPanel");
+  const stages = list(progress.stages);
+  const stageRows = stages.length ? stages.map((stage, index) => {
+    const status = stage.status || "todo";
+    const marker = status === "done" ? "✓" : status === "active" ? "…" : status === "failed" ? "×" : String(index + 1).padStart(2, "0");
+    return `<li class="plan-progress-row is-${escapeHtml(status)}"><span class="plan-progress-marker">${marker}</span><div><strong>${escapeHtml(stage.label || "方案阶段")}</strong><small>${escapeHtml(stage.description || "")}</small></div></li>`;
+  }).join("") : "<li class=\"plan-progress-empty\">正在创建老师工作区和阶段记录</li>";
+  const review = progress.review || {};
+  const reviewText = review.score == null ? "独立审稿尚未开始" : `独立审稿 ${Number(review.score)} 分 · ${review.ok ? "通过" : "待处理"}`;
+  const statusText = progress.status === "failed" ? "方案推导中断" : progress.status === "done" ? "方案推导完成" : "正在推导方案";
+  $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 方案推导</span><h3>${escapeHtml(statusText)}</h3></div><span class="status-chip ${progress.status === "failed" ? "is-revise" : progress.status === "done" ? "is-done" : "is-progress"}">${escapeHtml(reviewText)}</span></div><p class="panel-copy">这里沿用老师项目的阶段进度。需求拆解、架构设计和独立审稿完成后，才会整理待确认问题和交接文档。</p><ol class="plan-progress-list">${stageRows}</ol>${progress.status === "failed" ? `<div class="supplement-box"><strong>方案推导需要重试</strong><p>当前阶段已经保留在本地工作区，重新执行会优先复用已完成的阶段。</p></div>` : ""}`;
+}
+
+function startPlanProgress(project) {
+  let stopped = false;
+  let timer = null;
+  const poll = async () => {
+    if (stopped) return;
+    try {
+      const progress = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/plan-progress`);
+      if (!stopped) renderPlanProgress(project, progress);
+    } catch (_) {
+      // The confirm request remains the authoritative result. A temporary progress read failure should not stop it.
+    }
+    if (!stopped) timer = window.setTimeout(poll, 1200);
+  };
+  poll();
+  return () => { stopped = true; if (timer) window.clearTimeout(timer); };
+}
+
+function teacherIntakeRound(project) {
+  const rounds = list(project.workshop?.transcript).filter((message) => message.role === "assistant").length;
+  return rounds ? `第 ${rounds} 轮` : "准备第 1 轮";
+}
+
 function renderDiscovery(project) {
   showOnly("#questionPanel");
   if (project.workshop) {
     const panel = $("#questionPanel");
-    panel.innerHTML = `<div class="panel-heading"><div><span class="section-kicker">需求澄清 · 老师 Agent</span><h3>把想法聊清楚</h3></div><span class="status-chip is-progress">动态追问</span></div><p class="panel-copy">问题会根据当前覆盖情况继续变化。可以直接回答、点推荐方向，拿不准时让老师帮你想想。</p>${renderTeacherChat(project, "intake")}<div class="teacher-suggestions">${renderTeacherSuggestions(project, "intake")}</div>${teacherChatComposer("intake")}`;
+    panel.innerHTML = `<div class="panel-heading"><div><span class="section-kicker">需求澄清 · 老师 Agent · ${teacherIntakeRound(project)}</span><h3>把想法聊清楚</h3></div><span class="status-chip is-progress">动态追问</span></div><p class="panel-copy">当前问题会根据六个需求维度的覆盖情况继续变化。回答后进入下一轮，拿不准可以点推荐方向或直接说不知道。</p>${renderTeacherChat(project, "intake")}<div class="teacher-suggestions">${renderTeacherSuggestions(project, "intake")}</div>${teacherChatComposer("intake")}`;
     bindTeacherChat(project, "intake");
     return;
   }
@@ -728,10 +764,12 @@ function renderWorkshopAnswers(project, plan) {
   panel.querySelector("#backToPlanButton")?.addEventListener("click", () => renderWorkshopPlan(project, plan));
   panel.querySelector("#saveWorkshopAnswersButton")?.addEventListener("click", async (event) => {
     setActionBusy(event.currentTarget, "正在重新推导");
+    const stopProgress = online ? () => {} : startPlanProgress(project);
     try {
       const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/workshop-chat/save`, { method: "POST", body: JSON.stringify({ answers: draft }) });
       replaceProject(payload.project); render();
-    } catch (error) { restoreAction(event.currentTarget); showError(error.message); }
+    } catch (error) { restoreAction(event.currentTarget); render(); showError(error.message); }
+    finally { stopProgress(); }
   });
 }
 
@@ -946,6 +984,7 @@ async function confirmIntent(project) {
   clearError();
   const button = $("#confirmIntentButton");
   setActionBusy(button, "正在整理 PRD");
+  const stopProgress = online ? () => {} : startPlanProgress(project);
   try {
     if (online) { project.plan = mockPlan(project); transition(project, "needs_plan_confirmation", { pending: project.plan.open_questions || [] }); persist(); }
     else {
@@ -955,7 +994,8 @@ async function confirmIntent(project) {
       replaceProject(payload.project);
     }
     render();
-  } catch (error) { restoreAction(button); showError(error.message); }
+  } catch (error) { restoreAction(button); render(); showError(error.message); }
+  finally { stopProgress(); }
 }
 async function generateRealPlan() {
   const button = $("#realPlanButton"); button.disabled = true; clearError();

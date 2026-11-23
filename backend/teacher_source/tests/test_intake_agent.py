@@ -89,16 +89,21 @@ def test_draft_without_coverage_check_is_rejected():
     assert "先调用 check_coverage" in runner.seen[1][-1]["content"][0]["content"]
 
 
-@pytest.mark.parametrize("rounds, wants", [(1, True), (MAX_ROUNDS, False)])
-def test_forced_rounds_only_allow_draft(rounds, wants):
+@pytest.mark.parametrize("rounds, wants", [(1, True)])
+def test_user_request_draft_does_not_skip_missing_dimensions(rounds, wants):
     runner = ScriptRunner([ask(uid="f1"), draft("f2")])
-    assert run_intake_agent("用户：x", rounds, wants, runner)["action"] == "draft"
+    assert run_intake_agent("用户：x", rounds, wants, runner)["action"] == "ask"
+
+
+def test_max_rounds_force_draft_even_when_dimensions_are_missing():
+    runner = ScriptRunner([ask(uid="f1"), draft("f2")])
+    assert run_intake_agent("用户：x", MAX_ROUNDS, False, runner)["action"] == "draft"
     assert "只能 action=draft" in runner.seen[1][-1]["content"][0]["content"]
 
 
 def test_forced_draft_allowed_even_when_info_missing():
-    runner = ScriptRunner([coverage_call({k: "" for k in FULL}), draft()])
-    assert run_intake_agent("用户：x", 2, True, runner)["action"] == "draft"
+    runner = ScriptRunner([coverage_call({k: "" for k in FULL}), ask("给谁用？", uid="f3")])
+    assert run_intake_agent("用户：x", 2, True, runner)["action"] == "ask"
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +154,7 @@ def test_finish_button_tells_agent_to_draft():
     out = events(model, "做个剧本生成器", "问题一", chat.FINISH_INTAKE)
     assert out[-1]["name"] == "confirm_product"
     prompt = model.runner.seen[0][0]["content"]
-    assert "必须整理草稿：是" in prompt and chat.FINISH_INTAKE not in prompt
+    assert "用户点了「信息够了」" in prompt and chat.FINISH_INTAKE not in prompt
 
 
 def test_mock_chat_keeps_fixed_three_rounds():

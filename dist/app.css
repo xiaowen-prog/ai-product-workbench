@@ -236,6 +236,18 @@ textarea:hover, input:hover, select:hover { border-color: var(--border-hover); }
 .teacher-chat-draft { margin-top: 16px; padding: 15px; border: 1px solid var(--border-warm); border-radius: 12px; background: var(--surface-confirm); }
 .teacher-chat-draft strong { display: block; margin-bottom: 10px; }
 .teacher-chat-draft p { margin: 8px 0; line-height: 1.65; }
+.plan-progress-list { display: grid; gap: 0; margin: 20px 0 4px; padding: 0; list-style: none; border-top: 1px solid var(--border); }
+.plan-progress-row { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 66px; padding: 10px 0; border-bottom: 1px dashed var(--border); }
+.plan-progress-marker { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--border); border-radius: 50%; color: var(--text-tertiary); font: 11px var(--font-mono); }
+.plan-progress-row strong, .plan-progress-row small { display: block; }
+.plan-progress-row strong { color: var(--text); font-size: 14px; }
+.plan-progress-row small { margin-top: 4px; color: var(--text-tertiary); font-size: 12px; line-height: 1.55; }
+.plan-progress-row.is-active .plan-progress-marker { color: var(--accent); border-color: var(--accent); }
+.plan-progress-row.is-active strong { color: var(--accent); }
+.plan-progress-row.is-done .plan-progress-marker { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.plan-progress-row.is-failed .plan-progress-marker { color: var(--danger); border-color: var(--danger); }
+.plan-progress-row.is-failed strong { color: var(--danger); }
+.plan-progress-empty { padding: 18px 0; color: var(--text-tertiary); list-style: none; }
 
 .question-options { display: grid; gap: 8px; }
 .question-option { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 64px; padding: 10px 12px; color: var(--text); text-align: left; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; }
