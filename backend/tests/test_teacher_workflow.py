@@ -152,6 +152,24 @@ def test_replan_after_answered_batch_only_keeps_review_gap_questions(tmp_path, m
     assert follow_up == ["审稿追问：请补充一条会改变方案判断的事实、边界或验收标准。"]
 
 
+def test_replan_after_answered_batch_with_passing_review_opens_plan_confirmation(tmp_path, monkeypatch):
+    client, path, kit = setup_workflow(tmp_path, monkeypatch, score=86, pending=True)
+    project = client.get(path).json()["project"]
+    messages = project["workshop"]["answer_transcript"] + [{"role": "user", "text": "逐条附原文位置"}]
+    answered = client.post(path + "/workshop-chat", json={"stage": "answers", "messages": messages})
+    draft = answered.json()["project"]["workshop"]["answer_draft"]
+    saved = client.post(path + "/workshop-chat/save", json={"answers": draft})
+    assert saved.status_code == 200
+    replanned = saved.json()["project"]
+    assert replanned["plan"]["review_ok"] is True
+    assert replanned["workshop"]["answer_questions"] == []
+    assert replanned["plan"]["open_questions"] == []
+    confirmed = client.post(path + "/confirm-plan", json={"confirmed": True})
+    assert confirmed.status_code == 200
+    assert confirmed.json()["project"]["status"] == "backend_building"
+    assert (kit / "projects").exists()
+
+
 def test_teacher_handoff_requires_answers_review_and_explicit_confirmation(tmp_path, monkeypatch):
     client, path, kit = setup_workflow(tmp_path, monkeypatch, pending=True)
     project = client.get(path).json()["project"]

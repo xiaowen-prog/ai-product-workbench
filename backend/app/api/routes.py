@@ -101,6 +101,10 @@ def get(project_id: str, store: Store = Depends(get_store)) -> dict:
     project = store.get_project(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"})
+    # 读取旧项目时同步一次已通过复审的状态迁移，避免历史遗留的
+    # open_questions 把用户重新挡回方案问答阶段。
+    if project.status.value == "needs_plan_confirmation" and project.workshop and project.plan:
+        project = resume_workshop(store, project_id)
     return {"project": public_project(project)}
 
 

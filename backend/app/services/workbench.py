@@ -46,6 +46,10 @@ def _limit_plan_questions(review_questions: list[str], questions: list[str]) -> 
     return remaining[:MAX_PLAN_QUESTIONS]
 
 
+def _review_passed(plan: ProductPlan | None) -> bool:
+    return bool(plan and plan.review_ok and plan.review_score >= teacher_engine.MIN_REVIEW_SCORE)
+
+
 def now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -269,6 +273,11 @@ def resume_workshop(store: Store, project_id: str) -> Project:
         raise KeyError(project_id)
     if project.workshop is not None:
         if project.status == ProjectStatus.NEEDS_PLAN_CONFIRMATION and project.plan:
+            # 兼容在旧逻辑下已经完成复审、但仍残留新一批 open_questions 的项目。
+            # 复审通过后不能再凭空开启下一批问题，直接进入方案确认。
+            if _review_passed(project.plan) and project.workshop.decisions and not project.workshop.answer_draft:
+                project.workshop.answer_questions = []
+                project.plan.open_questions = []
             source_questions = project.workshop.answer_questions or [
                 str(item).strip() for item in (project.plan.open_questions or []) if str(item).strip()
             ]
@@ -471,10 +480,10 @@ def _plan_workshop(store: Store, project: Project) -> None:
             review_questions.append(f"审稿追问（{section}）：{problem}")
         if not review_questions:
             review_questions.append("审稿追问：请补充一条会改变方案判断的事实、边界或验收标准。")
-    # 首次方案生成先让用户处理 PRD 的全部未知项。后续复审把具体审稿意见放到队首，
-    # 保留仍未回答的方案缺口，确保每次只补当前真正缺失的部分。
-    if review_questions and workshop.decisions:
-        questions = _limit_plan_questions(review_questions, questions)
+    # 首次方案生成先让用户处理 PRD 的未知项。第二批回答写回后只重新审稿：
+    # 复审未通过只问审稿缺口；复审通过直接进入方案确认，不再凭空开启新一批问题。
+    if workshop.decisions:
+        questions = _limit_plan_questions(review_questions, []) if not review_ok else []
     elif not questions and review_questions:
         questions = _limit_plan_questions(review_questions, [])
     else:
@@ -788,6 +797,9 @@ def confirm_plan(store: Store, project_id: str, confirmed: bool, note: str = "")
         return store.upsert_project(project)
     if not project.confirmations.intent:
         raise ValueError("请先确认需求草稿")
+    if _review_passed(project.plan) and project.workshop.decisions and not project.workshop.answer_draft:
+        project.workshop.answer_questions = []
+        project.plan.open_questions = []
     if project.workshop.answer_questions or project.plan.open_questions or project.workshop.answer_draft:
         raise ValueError("请完成老师方案问答并重新推导方案")
     if project.plan.review_score < teacher_engine.MIN_REVIEW_SCORE or not project.plan.review_ok:
