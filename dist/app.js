@@ -648,10 +648,15 @@ function renderPlanProgress(project, progress = {}) {
   const statusText = progress.status === "failed" ? "方案推导中断" : progress.status === "done" ? "方案推导完成" : "正在推导方案";
   const done = progress.status === "done";
   const reviewPassed = review.ok === true && Number(review.score || 0) >= 80;
+  const answerDraftPending = list(project.workshop?.answer_draft).length > 0;
   const nextCopy = done
-    ? (reviewPassed ? "独立审稿已通过。请打开方案，确认后才能交接进入后端开发。" : "独立审稿未达到 80 分，不能确认方案。请打开待确认问题，补充后重新整理 PRD。")
+    ? (reviewPassed
+      ? "独立审稿已通过。请打开方案，确认后才能交接进入后端开发。"
+      : answerDraftPending
+        ? "这批方案问题已经回答完，先把回答写回 PRD 并重新审阅；只有复审仍未通过，才会生成定向追问。"
+        : "独立审稿未达到 80 分，不能确认方案。请打开审稿指出的具体缺口，重新回答后整理 PRD。")
     : "这里沿用老师项目的阶段进度。需求拆解、架构设计和独立审稿完成后，才会整理待确认问题和交接文档。";
-  const nextAction = done ? `<div class="plan-progress-next"><strong>${reviewPassed ? "下一步：确认方案" : "下一步：补充待确认问题"}</strong><p>${reviewPassed ? "查看完整方案并点击确认，进入后端开发准备。" : "查看审稿指出的缺口，回答后重新整理 PRD。"}</p><button class="primary-button" id="openPlanResultButton" type="button">${reviewPassed ? "查看方案并确认" : "查看待确认问题"}<span class="button-arrow">↗</span></button></div>` : "";
+  const nextAction = done ? `<div class="plan-progress-next"><strong>${reviewPassed ? "下一步：确认方案" : answerDraftPending ? "下一步：写回这批回答" : "下一步：回答审稿缺口"}</strong><p>${reviewPassed ? "查看完整方案并点击确认，进入后端开发准备。" : answerDraftPending ? "先点击“重新整理 PRD”，系统才会重新审稿并决定是否需要定向追问。" : "查看审稿指出的缺口，回答后重新整理 PRD。"}</p><button class="primary-button" id="openPlanResultButton" type="button">${reviewPassed ? "查看方案并确认" : answerDraftPending ? "继续整理这批回答" : "查看定向追问"}<span class="button-arrow">↗</span></button></div>` : "";
   $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 方案推导</span><h3>${escapeHtml(statusText)}</h3></div><span class="status-chip ${progress.status === "failed" ? "is-revise" : progress.status === "done" ? (reviewPassed ? "is-done" : "is-revise") : "is-progress"}">${escapeHtml(reviewText)}</span></div><p class="panel-copy">${escapeHtml(nextCopy)}</p><ol class="plan-progress-list">${stageRows}</ol>${nextAction}${progress.status === "failed" ? `<div class="supplement-box"><strong>方案推导需要重试</strong><p>当前阶段已经保留在本地工作区，重新执行会优先复用已完成的阶段。</p></div>` : ""}`;
   $("#openPlanResultButton")?.addEventListener("click", () => {
     state.planProgressToken = Number(state.planProgressToken || 0) + 1;

@@ -138,6 +138,20 @@ def test_low_review_creates_followup_chat_question(tmp_path, monkeypatch):
     assert client.post(path + "/confirm-plan", json={"confirmed": True}).status_code == 409
 
 
+def test_replan_after_answered_batch_only_keeps_review_gap_questions(tmp_path, monkeypatch):
+    client, path, _ = setup_workflow(tmp_path, monkeypatch, score=78, pending=True)
+    project = client.get(path).json()["project"]
+    question = project["workshop"]["answer_questions"][0]
+    messages = project["workshop"]["answer_transcript"] + [{"role": "user", "text": "逐条附原文位置"}]
+    answered = client.post(path + "/workshop-chat", json={"stage": "answers", "messages": messages})
+    draft = answered.json()["project"]["workshop"]["answer_draft"]
+    assert draft and draft[0]["question"] == question
+    saved = client.post(path + "/workshop-chat/save", json={"answers": draft})
+    assert saved.status_code == 200
+    follow_up = saved.json()["project"]["workshop"]["answer_questions"]
+    assert follow_up == ["审稿追问：请补充一条会改变方案判断的事实、边界或验收标准。"]
+
+
 def test_teacher_handoff_requires_answers_review_and_explicit_confirmation(tmp_path, monkeypatch):
     client, path, kit = setup_workflow(tmp_path, monkeypatch, pending=True)
     project = client.get(path).json()["project"]
