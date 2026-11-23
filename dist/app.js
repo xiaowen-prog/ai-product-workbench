@@ -563,7 +563,7 @@ function teacherOptionItems(project, stage) {
   const assistant = [...messages].reverse().find((message) => message.role === "assistant");
   if (!assistant) return [];
   return String(assistant.text || "").split("\n").map((line) => line.match(/^\s*[A-CＡ-Ｃ][.．、:：)]\s*(.+)$/))
-    .filter(Boolean).map((match) => ({ label: match[0].trim().slice(0, 1).toUpperCase(), text: match[1].trim() })).filter((item) => item.text).slice(0, 3);
+    .filter(Boolean).map((match, index) => ({ label: match[0].trim().slice(0, 1).toUpperCase(), text: match[1].trim(), recommended: index === 0 })).filter((item) => item.text).slice(0, 3);
 }
 
 function teacherOptionSuggestions(project, stage) {
@@ -574,7 +574,7 @@ function renderTeacherSuggestions(project, stage) {
   const source = stage === "answers" ? list(project.workshop?.answer_suggestions) : list(project.workshop?.intake_suggestions);
   const defaults = stage === "answers" ? ["帮我想想", "跳过这题", "先保存已回答的"] : ["不确定，先跳过", "信息够了，帮我整理"];
   const optionItems = teacherOptionItems(project, stage);
-  const optionButtons = optionItems.map((item) => `<button class="teacher-choice-card" data-teacher-choice="${escapeHtml(item.text)}" type="button"><span class="teacher-choice-key">${escapeHtml(item.label)}</span><span>${escapeHtml(item.text)}</span></button>`).join("");
+  const optionButtons = optionItems.map((item) => `<button class="teacher-choice-card${item.recommended ? " is-recommended" : ""}" data-teacher-choice="${escapeHtml(item.text)}" type="button"><span class="teacher-choice-key">${escapeHtml(item.label)}</span><span class="teacher-choice-copy">${escapeHtml(item.text)}${item.recommended ? '<small class="teacher-choice-badge">推荐方向</small>' : ""}</span></button>`).join("");
   const utilityItems = [...new Set([...source, ...defaults].map((item) => String(item || "").trim()).filter(Boolean))];
   const utilityButtons = utilityItems.map((item) => `<button class="teacher-suggestion" data-teacher-suggestion="${escapeHtml(item)}" type="button">${escapeHtml(item)}</button>`).join("");
   return `${optionButtons ? `<div class="teacher-choice-grid">${optionButtons}</div>` : ""}<div class="teacher-suggestions teacher-utility-actions">${utilityButtons}</div>`;
