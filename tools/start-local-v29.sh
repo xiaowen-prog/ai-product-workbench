@@ -22,24 +22,27 @@ if [ -z "${MODEL_API_KEY:-}" ] && [ -f "${WORKBENCH_ROOT}/.local/teacher-engine/
   # shellcheck disable=SC1091
   . "${WORKBENCH_ROOT}/.local/teacher-engine/.env"
   set +a
-  export MODEL_API_KEY="${ANTHROPIC_API_KEY:-}"
-  export MODEL_BASE_URL="${MODEL_BASE_URL:-https://api.deepseek.com/v1}"
-  export MODEL_NAME="${MODEL_NAME:-${MODEL_ID:-deepseek-chat}}"
+  # 老师源码的 DeepSeek 配置是 Anthropic Messages 兼容地址；保留原地址和 MODEL_ID，
+  # 不把它强行改成 OpenAI /v1，否则 deepseek-v4-flash 会收到错误协议并返回 502。
+  export MODEL_API_KEY="${MODEL_API_KEY:-${ANTHROPIC_API_KEY:-${OPENAI_API_KEY:-}}}"
+  export MODEL_BASE_URL="${MODEL_BASE_URL:-${ANTHROPIC_BASE_URL:-${OPENAI_BASE_URL:-https://api.deepseek.com/v1}}}"
+  export MODEL_NAME="${MODEL_NAME:-${MODEL_ID:-${OPENAI_MODEL:-deepseek-chat}}}"
 fi
 
-# 老师开发项目的真实 Agent adapter 使用 AGENT_MODEL_* 命名。
-# 统一映射到同一份后端运行时配置，不把密钥写进页面或代码。
+# 老师开发项目的原有 Task adapter 使用 AGENT_MODEL_* 命名。若没有单独的
+# OpenAI 兼容配置，保留它原来的 /v1 默认值；老师 Agent 自己使用上面的
+# MODEL_BASE_URL / MODEL_NAME。
 export AGENT_MODEL_PROVIDER="${AGENT_MODEL_PROVIDER:-openai-compatible}"
 export AGENT_MODEL_API_KEY="${AGENT_MODEL_API_KEY:-${MODEL_API_KEY:-}}"
-export AGENT_MODEL_BASE_URL="${AGENT_MODEL_BASE_URL:-${MODEL_BASE_URL:-https://api.deepseek.com/v1}}"
-export AGENT_MODEL="${AGENT_MODEL:-${MODEL_NAME:-deepseek-chat}}"
+export AGENT_MODEL_BASE_URL="${AGENT_MODEL_BASE_URL:-${OPENAI_BASE_URL:-https://api.deepseek.com/v1}}"
+export AGENT_MODEL="${AGENT_MODEL:-${OPENAI_MODEL:-deepseek-chat}}"
 export AGENT_MODEL_TIMEOUT_SECONDS="${AGENT_MODEL_TIMEOUT_SECONDS:-${MODEL_TIMEOUT_SECONDS:-45}}"
 
-# Agent 工坊的原始 Runner 走 OpenAI-compatible 分支，继续复用同一后端密钥。
-export API_FORMAT="${API_FORMAT:-openai}"
+# 只有显式配置 OpenAI 格式时才使用 OpenAI；老师源码默认走 Anthropic 兼容协议。
+export API_FORMAT="${API_FORMAT:-anthropic}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-${AGENT_MODEL_API_KEY:-}}"
 export OPENAI_BASE_URL="${OPENAI_BASE_URL:-${AGENT_MODEL_BASE_URL:-}}"
-export MODEL_ID="${MODEL_ID:-${AGENT_MODEL:-}}"
+export MODEL_ID="${MODEL_ID:-${MODEL_NAME:-${AGENT_MODEL:-}}}"
 export BLUEPRINT_TIMEOUT="${BLUEPRINT_TIMEOUT:-120}"
 
 cd "${WORKBENCH_ROOT}"

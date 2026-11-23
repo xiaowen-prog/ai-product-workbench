@@ -125,7 +125,7 @@ def verify_backend_development(store: Store, project_id: str) -> tuple[Project, 
     if project is None:
         raise KeyError(project_id)
     if project.status != ProjectStatus.BACKEND_BUILDING or project.backend is None:
-        raise ValueError("只有开发中的项目才能执行老师工具包自检")
+        raise ValueError("只有开发中的项目才能执行阶段工具包自检")
     if project.backend.status not in {"awaiting_external_coding", "kit_self_check_failed", "kit_self_check_passed", "stage_advanced"}:
         raise ValueError("请先运行原始 kit.sh 任务并完成外部编码工具阶段")
     # 原始 kit.sh 的自检由外部编码工具完成后运行。工作台不创建内部
@@ -142,7 +142,7 @@ def accept_backend_stage(store: Store, project_id: str, passed: bool, next_stage
     if project is None:
         raise KeyError(project_id)
     if project.status != ProjectStatus.BACKEND_BUILDING or project.backend is None:
-        raise ValueError("当前项目还不在老师开发阶段")
+        raise ValueError("当前项目还不在开发阶段")
     if not project.backend.stage_accepted:
         raise ValueError("请先完成本阶段自然语言验收")
     if not passed:
@@ -158,7 +158,7 @@ def accept_backend_stage(store: Store, project_id: str, passed: bool, next_stage
     if stage.startswith("阶段3") or stage == "完成":
         project.backend.status = "backend_verified"
         project.confirmations.acceptance = False
-        transition(project, ProjectStatus.BACKEND_VERIFIED, actor="user", evidence=["老师工具包阶段 0-2 已按原顺序通过"], pending=["user_acceptance"])
+        transition(project, ProjectStatus.BACKEND_VERIFIED, actor="user", evidence=["阶段 0-2 已按原顺序通过"], pending=["user_acceptance"])
     else:
         project.backend.status = "stage_advanced"
         project.backend.stage_confirmed = False
@@ -245,7 +245,7 @@ def _intent_from_teacher_plan(project: Project, data: dict[str, object]) -> Inte
         scope=[str(item.get("name") or "").strip() for item in data.get("components", [])
                if isinstance(item, dict) and str(item.get("decision")) == "必选" and str(item.get("name") or "").strip()],
         acceptance=[str(item).strip() for item in design.get("acceptance", []) if str(item).strip()],
-        constraints=constraints or ["按老师方案中的权限和安全边界执行"],
+        constraints=constraints or ["按方案中的权限和安全边界执行"],
         risks=risks,
     )
 
@@ -254,7 +254,7 @@ def _advance_workshop(project: Project) -> None:
     """Ask the teacher intake agent and keep its full message protocol."""
     workshop = project.workshop
     if workshop is None:
-        raise ValueError("请先进入老师需求澄清流程")
+        raise ValueError("请先进入需求澄清流程")
     events = teacher_engine.intake_chat(project, workshop.transcript)
     text = "".join(str(event.get("delta") or "") for event in events if event.get("type") == "text").strip()
     if text:
@@ -304,11 +304,6 @@ def resume_workshop(store: Store, project_id: str) -> Project:
         raise KeyError(project_id)
     if project.workshop is not None:
         if project.status == ProjectStatus.NEEDS_PLAN_CONFIRMATION and project.plan:
-            # 兼容在旧逻辑下已经完成复审、但仍残留新一批 open_questions 的项目。
-            # 复审通过后不能再凭空开启下一批问题，直接进入方案确认。
-            if _review_passed(project.plan) and project.workshop.decisions and not project.workshop.answer_draft:
-                project.workshop.answer_questions = []
-                project.plan.open_questions = []
             source_questions = project.workshop.answer_questions or [
                 str(item).strip() for item in (project.plan.open_questions or []) if str(item).strip()
             ]
@@ -359,9 +354,9 @@ def workshop_chat(store: Store, project_id: str, stage: str, messages: list[Work
         raise KeyError(project_id)
     workshop = project.workshop
     if workshop is None:
-        raise ValueError("请先点击继续需求澄清，进入老师原始流程")
+        raise ValueError("请先点击继续需求澄清，进入原始流程")
     if stage not in {"intake", "answers"}:
-        raise ValueError("不支持的老师对话阶段")
+        raise ValueError("不支持的对话阶段")
     if stage == "intake":
         if project.status != ProjectStatus.NEEDS_DISCOVERY:
             raise ValueError("当前不在需求澄清对话阶段")
@@ -469,7 +464,7 @@ def _plan_workshop(store: Store, project: Project) -> None:
     score = review.get("score")
     workshop = project.workshop
     if workshop is None:
-        raise ValueError("请先进入老师需求澄清流程")
+        raise ValueError("请先进入需求澄清流程")
 
     # Keep the teacher source's order and wording metadata. The visible plain
     # question can change after a replan, while ``original`` and ``merged``
@@ -565,15 +560,6 @@ def _question_has_decision(workshop: Workshop, aliases: list[str], previous_orig
     for key in list(workshop.decisions):
         canonical = previous_originals.get(key, workshop.originals.get(key, key))
         if canonical in decision_keys and str(workshop.decisions.get(key) or "").strip():
-            return True
-        if str(workshop.decisions.get(key) or "").strip() and any(
-            _question_is_near_duplicate(alias, key, mature=len(workshop.decisions) >= 20)
-            for alias in aliases
-        ):
-            return True
-        if len(workshop.decisions) >= 20 and str(workshop.decisions.get(key) or "").strip() and any(
-            _question_topics_match(alias, key, str(workshop.decisions.get(key) or "")) for alias in aliases
-        ):
             return True
     return False
 
@@ -794,7 +780,7 @@ def answer_project(store: Store, project_id: str, answers: AnswerRequest) -> Pro
     if project is None:
         raise KeyError(project_id)
     if project.workshop is None:
-        raise ValueError("请先点击继续需求澄清，进入老师原始流程")
+        raise ValueError("请先点击继续需求澄清，进入原始流程")
     return _answer_workshop(store, project, answers)
 
 
@@ -828,11 +814,8 @@ def confirm_plan(store: Store, project_id: str, confirmed: bool, note: str = "")
         return store.upsert_project(project)
     if not project.confirmations.intent:
         raise ValueError("请先确认需求草稿")
-    if _review_passed(project.plan) and project.workshop.decisions and not project.workshop.answer_draft:
-        project.workshop.answer_questions = []
-        project.plan.open_questions = []
     if project.workshop.answer_questions or project.plan.open_questions or project.workshop.answer_draft:
-        raise ValueError("请完成老师方案问答并重新推导方案")
+        raise ValueError("请完成方案问答并重新推导方案")
     if project.plan.review_score < teacher_engine.MIN_REVIEW_SCORE or not project.plan.review_ok:
         raise ValueError("独立审稿需要通过且达到 80 分")
     if project.plan_revision:
@@ -882,7 +865,7 @@ def generate_real_plan(store: Store, project_id: str, answers: AnswerRequest | N
 
 PLAN_PROGRESS_STAGES = (
     ("extract", "需求拆解", "把想法拆成目标、用户和核心闭环"),
-    ("select", "组件选型", "按老师规则确定需要的组件"),
+    ("select", "组件选型", "按项目规则确定需要的组件"),
     ("design", "领域建模与架构设计", "整理五要素、工具清单和系统设计"),
     ("review", "独立审稿", "检查方案矛盾、风险和高严重度问题"),
     ("questions", "整理待确认问题", "把方案里的未知项改成可回答的问题"),

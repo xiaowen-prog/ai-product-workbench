@@ -269,7 +269,7 @@ def answer_chat(project: Project, messages: list[WorkshopMessage]) -> list[dict]
         raise
     except Exception as exc:
         detail = str(exc).strip().replace("\n", " ")[:1000]
-        message = "老师方案问答失败，已停止，请重试"
+        message = "方案问答失败，已停止，请重试"
         if detail:
             message += f"。原始错误：{detail}"
         raise TeacherEngineError(message) from exc
@@ -278,7 +278,7 @@ def answer_chat(project: Project, messages: list[WorkshopMessage]) -> list[dict]
 def development_chat(project: Project, messages: list[WorkshopMessage]) -> list[dict]:
     """阶段开发前的自然语言产品经理对话；不执行代码，只确认本阶段决策。"""
     if not project.backend or not project.backend.kit_task:
-        raise TeacherEngineError("当前阶段还没有老师任务", code="stage_task_missing", status_code=409)
+        raise TeacherEngineError("当前阶段还没有阶段任务", code="stage_task_missing", status_code=409)
     _load_engine()
     transcript = "\n".join(f"{'产品经理' if item.role == 'user' else '阶段 Agent'}：{item.text}" for item in messages[-20:])
     schema = {

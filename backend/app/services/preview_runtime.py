@@ -37,11 +37,11 @@ def _play_model():
 
 def _teacher_plan(project: Project) -> tuple[dict, Path, str]:
     if not project.plan or not project.plan.teacher_plan:
-        raise ValueError("方案里还没有老师方案，先完成方案推导")
+        raise ValueError("方案里还没有可运行方案，先完成方案推导")
     workspace = Path(project.plan.teacher_workspace_path or "")
     prd_path = workspace / "PRD.md"
     if not prd_path.is_file():
-        raise ValueError("找不到老师方案的 PRD 工作区")
+        raise ValueError("找不到方案的 PRD 工作区")
     return project.plan.teacher_plan, workspace, prd_path.read_text(encoding="utf-8")
 
 
@@ -96,11 +96,11 @@ def verify_runtime(project: Project) -> PreviewArtifact:
     try:
         result = run_runtime(project, "请按方案处理一条真实用户请求")
         if not result.get("summary"):
-            raise ValueError("老师试玩没有返回可用回复")
+            raise ValueError("方案试玩没有返回可用回复")
         artifact.checks = [
             RuntimeCheck(id="runtime_page", label="运行时页面", status="passed", detail="页面路由已生成"),
             RuntimeCheck(id="health", label="健康检查", status="passed", detail="运行时可响应"),
-            RuntimeCheck(id="core_action", label="核心动作", status="passed", detail=f"老师 playground 已返回回复 {result.get('model', '')}"),
+            RuntimeCheck(id="core_action", label="核心动作", status="passed", detail=f"方案试玩已返回回复 {result.get('model', '')}"),
         ]
         artifact.status = "verified"
         artifact.verified_at = now()

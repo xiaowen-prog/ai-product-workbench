@@ -8,7 +8,7 @@ from app.main import create_app
 from app.schemas.models import BackendBuild
 from app.services import teacher_engine
 from app.services.kit_development import advance_kit
-from app.services.workbench import _limit_plan_questions
+from app.services.workbench import _limit_plan_questions, _question_has_decision
 
 
 def setup_workflow(tmp_path, monkeypatch, score=86, pending=False, severity=None, review_ok=True):
@@ -106,6 +106,15 @@ def test_plan_question_batch_is_capped_at_eighteen():
     assert len(_limit_plan_questions(review, questions)) == 18
 
 
+def test_new_review_gap_in_same_component_is_not_treated_as_answered():
+    workshop = type("WorkshopState", (), {
+        "decisions": {"审稿追问（components.s02 工具系统）：旧缺口": "已补充"},
+        "originals": {},
+    })()
+    aliases = ["审稿追问（components.s02 工具系统）：新的独立缺口"]
+    assert _question_has_decision(workshop, aliases, {}) is False
+
+
 def test_review_score_and_high_severity_are_the_plan_gate(tmp_path, monkeypatch):
     client, path, kit = setup_workflow(tmp_path, monkeypatch, score=86, severity="medium", review_ok=False)
     confirmed = client.post(path + "/confirm-plan", json={"confirmed": True})
@@ -171,6 +180,24 @@ def test_replan_after_answered_batch_with_passing_review_opens_plan_confirmation
     assert confirmed.status_code == 200
     assert confirmed.json()["project"]["status"] == "backend_building"
     assert (kit / "projects").exists()
+
+
+def test_confirm_plan_does_not_clear_unresolved_questions_after_passing_review(tmp_path, monkeypatch):
+    client, path, kit = setup_workflow(tmp_path, monkeypatch, score=86, pending=True)
+    stored = client.app.state.store.get_project(path.rsplit("/", 1)[-1])
+    stored.workshop.answer_questions = ["已经回答的问题", "仍未回答的问题"]
+    stored.plan.open_questions = list(stored.workshop.answer_questions)
+    stored.workshop.decisions["已经回答的问题"] = "已补充事实"
+    stored.workshop.answer_draft = []
+    stored.plan.review_score = 86
+    stored.plan.review_ok = True
+    client.app.state.store.upsert_project(stored)
+
+    response = client.post(path + "/confirm-plan", json={"confirmed": True})
+
+    assert response.status_code == 409
+    assert "完成方案问答" in response.json()["error"]["message"]
+    assert not (kit / "projects").exists()
 
 
 def test_teacher_handoff_requires_answers_review_and_explicit_confirmation(tmp_path, monkeypatch):

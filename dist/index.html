@@ -3,15 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#171e32" />
-  <title>AI 产品工作台 · 创作空间</title>
-  <link rel="stylesheet" href="app.css?v=20261119-29&cache=20261120-63" />
+  <meta name="theme-color" content="#f4f0e7" />
+  <title>AI 产品工厂 · 创作空间</title>
+  <link rel="stylesheet" href="app.css?v=20261124-adapt-31" />
 </head>
 <body>
+  <a class="skip-link" href="#mainContent">跳到当前任务</a>
   <div id="workbenchShell" class="shell is-entry">
     <button id="navBackdrop" class="nav-backdrop" type="button" tabindex="-1" aria-label="关闭项目导航" hidden></button>
     <aside id="projectNavigation" class="project-navigation" aria-label="项目导航">
-      <div class="navigation-brand-row"><a class="brand" href="/" aria-label="AI 产品工作台首页"><span class="brand-mark"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M7 6h11l7 7v13H7V6Z" fill="currentColor" opacity=".2"/><path d="M7 6h11v8h7v12H7V6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m18 6 7 8M11 19h10M11 23h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span><span>AI 产品工作台<small>PRODUCT STUDIO</small></span></a><button id="closeNavigationButton" class="nav-close icon-button" type="button" aria-label="关闭项目导航"><svg class="ui-icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+      <div class="navigation-brand-row"><a class="brand" href="/" aria-label="AI 产品工厂首页"><span class="brand-mark"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M7 6h11l7 7v13H7V6Z" fill="currentColor" opacity=".2"/><path d="M7 6h11v8h7v12H7V6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m18 6 7 8M11 19h10M11 23h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span><span>AI 产品工厂<small>PRODUCT STUDIO</small></span></a><button id="closeNavigationButton" class="nav-close icon-button" type="button" aria-label="关闭项目导航"><svg class="ui-icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
       <div class="workspace-label"><span class="workspace-avatar">W</span><div>我的创作空间<small>个人工作区</small></div><span class="workspace-indicator"></span></div>
       <button id="showNewProjectButton" class="new-project-button" type="button"><svg class="ui-icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>新建项目</span><span class="new-project-shortcut">＋</span></button>
       <section class="recent-card" aria-labelledby="projectListTitle">
@@ -23,9 +24,9 @@
     <div class="workbench">
       <header class="topbar">
         <div class="topbar-location"><button id="openNavigationButton" class="mobile-nav-button" type="button" aria-controls="projectNavigation" aria-expanded="false"><svg class="ui-icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>项目</span></button><span class="breadcrumb-root">创作空间</span><span class="breadcrumb-divider">/</span><span>产品工作台</span></div>
-        <div class="topbar-actions"><button id="settingsButton" class="help-button" type="button">模型设置</button><button id="helpButton" class="help-button" type="button">使用说明</button><span class="mode-pill"><span class="status-dot"></span>本地 API</span></div>
+        <div class="topbar-actions"><button id="settingsButton" class="help-button" type="button">服务状态</button><button id="helpButton" class="help-button" type="button">使用说明</button><span class="mode-pill"><span class="status-dot"></span>本地 API</span></div>
       </header>
-      <main>
+      <main id="mainContent">
         <section id="introBlock" class="intro" aria-label="创作空间介绍"><span class="studio-eyebrow"><span></span> 从想法到第一版</span><span class="intro-caption">想清楚一点，向前走一步。</span></section>
         <section class="workspace-grid">
           <div class="main-column">
@@ -43,9 +44,10 @@
                 <textarea id="idea" name="idea" maxlength="500" placeholder="我想做一个……
 帮谁，解决什么问题？"></textarea>
                 <div class="idea-suggestions" aria-label="试试这些起步想法"><span>试试</span><button type="button" data-idea-prompt="我想做一个帮读者整理摘录、记录思考的阅读笔记工具">阅读笔记</button><button type="button" data-idea-prompt="我想做一个帮自由职业者把客户需求变成报价单的小工具">客户报价</button><button type="button" data-idea-prompt="我想做一个帮自己记录每天运动和感受的习惯小工具">习惯记录</button></div>
-                <div class="form-bottom"><span class="field-hint">先说结果，不用描述技术</span><div class="form-actions"><button id="cancelNewProjectButton" class="text-button hidden" type="button">返回当前任务</button><button id="offlineExampleButton" class="secondary-button" type="button">查看离线示例</button><button id="startBuildButton" class="primary-button" type="submit"><span>开始搭建</span><span class="button-arrow"><svg class="ui-icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span></button></div></div>
+                <div class="form-bottom"><span class="field-hint">先说结果，不用描述技术</span><div class="form-actions"><button id="cancelNewProjectButton" class="text-button hidden" type="button">返回当前任务</button><button id="offlineExampleButton" class="secondary-button hidden" type="button" hidden disabled>离线示例不属于正式流程</button><button id="startBuildButton" class="primary-button" type="submit"><span>开始搭建</span><span class="button-arrow"><svg class="ui-icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span></button></div></div>
               </form>
               <div id="newProjectBar" class="new-project-bar hidden"><div class="current-project-summary"><span class="section-kicker">当前项目</span><strong></strong><small></small></div><span class="draft-note"><span class="status-dot"></span>按步骤确认，保留每次选择</span></div>
+              <section id="stageSummary" class="stage-summary" aria-label="当前阶段与下一步" aria-live="polite"></section><section id="recoveryPanel" class="recovery-panel" aria-live="polite" hidden></section>
               <div id="questionPanel" class="panel hidden"></div>
               <div id="planPanel" class="panel hidden"></div>
               <div id="previewPanel" class="panel hidden"></div>
@@ -55,7 +57,7 @@
             <div class="entry-footnote"><span class="footnote-line"></span><p>不必先写一份完整的 PRD。<br /><span>把问题说清楚，剩下的一起拆解。</span></p></div>
           </div>
           <aside class="side-column" aria-label="项目进程">
-            <section class="progress-card">
+            <div class="construction" aria-hidden="true"><svg viewBox="0 0 280 275" fill="none"><path d="M27 206 139 144 253 206 139 268Z" class="build-shadow"/><g stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="m28 192 111 61 111-61v14l-111 61-111-61Z" class="build-side"/><path d="m28 192 111-61 111 61-111 61Z" class="build-plane"/><path d="m48 145 91 50 91-50v13l-91 50-91-50Z" class="build-side"/><path d="m48 145 91-50 91 50-91 50Z" class="build-plane"/><path d="m64 102 75 41 75-41v13l-75 41-75-41Z" class="build-side"/><path d="m64 102 75-41 75 41-75 41Z" class="build-plane"/><path d="m81 58 58 32 58-32v12l-58 32-58-32Z" class="build-accent-side"/><path d="m81 58 58-32 58 32-58 32Z" class="build-accent"/><path d="m139 35 42 23-42 23-42-23Z" stroke="var(--surface)" opacity=".75"/><path d="m94 145 45-25 45 25-45 25Z"/><path d="M139 171v16m0 36v20" stroke-dasharray="2 4"/></g><path d="M25 75v74m-5-69 5-5 5 5M20 144l5 5 5-5" stroke="currentColor" opacity=".4"/></svg><span>一层一层，让想法落地</span></div><section class="progress-card">
               <div class="side-card-head"><span class="section-kicker">从想法到产品</span><span class="mini-live">2 个模块</span></div>
               <div class="flow-list" id="flowList">
 <div class="flow-module"><span>模块一</span><strong>需求澄清与 PRD</strong></div>
@@ -64,7 +66,7 @@
 <div class="flow-item"><div><strong>需求确认</strong><small>确认用户、目标与范围</small></div><span class="flow-state">未开始</span></div>
 <div class="flow-item"><div><strong>方案确认</strong><small>确定第一版怎么做</small></div><span class="flow-state">未开始</span></div>
 <div class="flow-module"><span>模块二</span><strong>后端开发与验证</strong></div>
-<div class="flow-item"><div><strong>后端开发</strong><small>生成任务、接口与检查</small></div><span class="flow-state">未开始</span></div>
+<div class="flow-item"><div><strong>后端开发</strong><small>阶段确认、外部编码与自检</small></div><span class="flow-state">未开始</span></div>
 <div class="flow-item"><div><strong>后端验收</strong><small>确认这次交付</small></div><span class="flow-state">未开始</span></div>
 <div class="flow-item"><div><strong>产品预览</strong><small>验证页面与核心动作</small></div><span class="flow-state">未开始</span></div>
 <div class="flow-item"><div><strong>试用与反馈</strong><small>用一次，再向前一步</small></div><span class="flow-state">未开始</span></div>
@@ -74,10 +76,10 @@
           </aside>
         </section>
       </main>
-      <footer><span>AI 产品工作台 · 浏览器 mock</span><span>你的想法，值得一个开始。</span></footer>
+      <footer><span>AI 产品工厂 · 本地服务</span><span>你的想法，值得一个开始。</span></footer>
     </div>
   </div>
-  <script>window.__ONLINE_PREVIEW__ = new URLSearchParams(location.search).get("mode") === "offline-demo";</script>
-  <script src="app.js?v=20261119-29&cache=20261120-63" defer></script>
+  <!-- Production entry always uses same-origin /api/v1; URL parameters cannot enable mocks. -->
+  <script src="app.js?v=20261124-adapt-31" defer></script>
 </body>
 </html>
