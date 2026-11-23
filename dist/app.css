@@ -230,6 +230,11 @@ textarea:hover, input:hover, select:hover { border-color: var(--border-hover); }
 .teacher-suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
 .teacher-suggestion { min-height: 38px; padding: 7px 12px; border: 1px solid var(--border-accent); border-radius: 999px; background: var(--surface); color: var(--text-secondary); font-size: 12px; cursor: pointer; }
 .teacher-suggestion:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.teacher-choice-grid { display: grid; gap: 10px; margin: 16px 0 10px; }
+.teacher-choice-card { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: start; gap: 10px; width: 100%; padding: 13px 14px; border: 1px solid var(--border-accent); border-radius: 12px; background: var(--surface); color: var(--text); text-align: left; font-size: 13px; line-height: 1.6; cursor: pointer; }
+.teacher-choice-card:hover { border-color: var(--accent); background: var(--accent-soft); }
+.teacher-choice-key { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: var(--accent); background: var(--accent-soft); font: 700 12px var(--font-mono); }
+.teacher-utility-actions { margin-top: 10px; }
 .teacher-chat-composer { display: grid; gap: 10px; margin-top: 14px; }
 .teacher-chat-composer textarea { width: 100%; min-height: 84px; resize: vertical; }
 .teacher-chat-composer .primary-button { justify-self: end; }
