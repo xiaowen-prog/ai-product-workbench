@@ -8,12 +8,12 @@ from pathlib import Path
 from app.core.config import model_settings
 from pydantic import BaseModel, Field
 
-from app.schemas.models import AcceptanceRequest, AnswerRequest, ConfirmationRequest, CreateProjectRequest, IntentConfirmationRequest, Project, ProjectListResponse, RuntimeActionRequest, TrialFeedbackRequest, WorkshopChatRequest, WorkshopChatSaveRequest, public_project
+from app.schemas.models import AcceptanceRequest, AnswerRequest, ConfirmationRequest, CreateProjectRequest, DevelopmentChatRequest, IntentConfirmationRequest, Project, ProjectListResponse, RuntimeActionRequest, TrialFeedbackRequest, WorkshopChatRequest, WorkshopChatSaveRequest, public_project
 from app.services.preview_runtime import ensure_preview, now as runtime_now, render_runtime_page, run_runtime, verify_runtime
 from teacher_backend.services.model_provider import ModelProviderError
 from app.services import teacher_engine
 from app.services.store import Store
-from app.services.workbench import accept_backend_stage, add_supplement, answer_project, confirm_intent, confirm_plan, create_iteration, create_project, development_status, fill_workshop_options, generate_real_plan, modify_plan, plan_progress, record_acceptance, record_trial_feedback, resume_workshop, start_backend_development, start_trial, verify_backend_development, workshop_chat, save_workshop_answers
+from app.services.workbench import accept_backend_stage, add_supplement, answer_project, confirm_intent, confirm_plan, create_iteration, create_project, development_chat, development_status, fill_workshop_options, generate_real_plan, modify_plan, plan_progress, record_acceptance, record_trial_feedback, resume_workshop, start_backend_development, start_trial, verify_backend_development, workshop_chat, save_workshop_answers
 
 
 router = APIRouter(prefix="/api/v1")
@@ -141,6 +141,19 @@ def workshop_chat_save_route(project_id: str, request: WorkshopChatSaveRequest, 
     except teacher_engine.TeacherEngineError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
     return {"project": public_project(project)}
+
+
+@router.post("/projects/{project_id}/development-chat")
+def development_chat_route(project_id: str, request: DevelopmentChatRequest, store: Store = Depends(get_store)) -> dict:
+    try:
+        project, events = development_chat(store, project_id, request.messages)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail={"code": "invalid_transition", "message": str(exc)}) from exc
+    except teacher_engine.TeacherEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
+    return {"project": public_project(project), "events": events}
 
 
 

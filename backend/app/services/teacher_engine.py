@@ -275,6 +275,55 @@ def answer_chat(project: Project, messages: list[WorkshopMessage]) -> list[dict]
         raise TeacherEngineError(message) from exc
 
 
+def development_chat(project: Project, messages: list[WorkshopMessage]) -> list[dict]:
+    """阶段开发前的自然语言产品经理对话；不执行代码，只确认本阶段决策。"""
+    if not project.backend or not project.backend.kit_task:
+        raise TeacherEngineError("当前阶段还没有老师任务", code="stage_task_missing", status_code=409)
+    _load_engine()
+    transcript = "\n".join(f"{'产品经理' if item.role == 'user' else '阶段 Agent'}：{item.text}" for item in messages[-20:])
+    schema = {
+        "type": "object",
+        "required": ["action", "message"],
+        "properties": {
+            "action": {"type": "string", "enum": ["ask", "ready"]},
+            "message": {"type": "string"},
+            "suggestions": {"type": "array", "items": {"type": "string"}},
+        },
+    }
+    prompt = f"""
+你是 idea-to-launch-kit 的阶段产品经理 Agent。现在只处理 {project.backend.kit_stage or '当前阶段'}，不要写代码、不要运行命令、不要声称已经开发完成。
+
+根目录手册要求：先用自然语言向产品经理提问，产品经理回答并明确确认后，才能开始本阶段开发；每次最多问 5 个必须决定的问题，并给出推荐方向。
+
+本阶段任务：
+{project.backend.kit_task}
+
+已有对话：
+{transcript or '（还没有对话）'}
+
+如果仍缺产品经理决定，返回 action=ask，message 用产品语言提问，suggestions 给 2 到 3 个可直接选择的方向。
+只有产品经理已经明确说“确认、按推荐开始、可以开始开发”等，且本阶段关键决定已覆盖时，才返回 action=ready，message 简要复述将要开始的工作。
+""".strip()
+    try:
+        with _runner(chat=True) as runner:
+            result = _chat_model(runner).complete_json("development_stage_chat", prompt, schema)
+    except Exception as exc:
+        detail = str(exc).strip().replace("\n", " ")[:1000]
+        message = "阶段自然语言对话失败，已停止，不会直接开始开发"
+        if detail:
+            message += f"。原始错误：{detail}"
+        raise TeacherEngineError(message) from exc
+    action = str(result.get("action") or "ask").strip()
+    text = str(result.get("message") or "").strip()
+    if not text:
+        raise TeacherEngineError("阶段 Agent 没有返回可读消息，请重试")
+    suggestions = [str(item).strip()[:120] for item in result.get("suggestions") or [] if str(item).strip()][:3]
+    events = [{"type": "text", "delta": text}, {"type": "suggestions", "items": suggestions}]
+    if action == "ready":
+        events.append({"type": "tool", "name": "confirm_stage", "args": {"message": text}})
+    return events
+
+
 def answer_intro(project: Project) -> str:
     _load_engine()
     from blueprint.chat import answer_intro as source_answer_intro

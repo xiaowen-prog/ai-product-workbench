@@ -542,6 +542,7 @@ function selectQuestionOption(card, value) {
 }
 
 function teacherChatMessages(project, stage) {
+  if (stage === "development") return list(project.backend?.stage_transcript);
   return stage === "answers" ? list(project.workshop?.answer_transcript) : list(project.workshop?.transcript);
 }
 
@@ -580,6 +581,11 @@ function renderTeacherSuggestions(project, stage) {
   return `${optionButtons ? `<div class="teacher-choice-grid">${optionButtons}</div>` : ""}<div class="teacher-suggestions teacher-utility-actions">${utilityButtons}</div>`;
 }
 
+function renderDevelopmentSuggestions(project) {
+  const items = list(project.backend?.stage_suggestions);
+  return items.length ? `<div class="teacher-suggestions teacher-utility-actions">${items.map((item) => `<button class="teacher-suggestion" data-teacher-suggestion="${escapeHtml(item)}" type="button">${escapeHtml(item)}</button>`).join("")}</div>` : "";
+}
+
 function bindTeacherChat(project, stage) {
   const panel = stage === "answers" ? $("#questionPanel") : $("#questionPanel");
   panel.querySelectorAll("[data-teacher-suggestion]").forEach((button) => button.addEventListener("click", () => sendTeacherChat(project, stage, button.dataset.teacherSuggestion, button)));
@@ -601,7 +607,7 @@ async function sendTeacherChat(project, stage, text, button) {
   const requestKey = `${project.id}:${stage}`;
   if (state.inflightChats.has(requestKey)) return;
   const workshop = project.workshop || {};
-  const history = stage === "answers" ? list(workshop.answer_transcript) : list(workshop.transcript);
+  const history = teacherChatMessages(project, stage);
   const lastUser = [...history].reverse().find((message) => message.role === "user");
   if (lastUser && String(lastUser.text || "").trim() === value) {
     await loadProject(project.id);
@@ -612,13 +618,15 @@ async function sendTeacherChat(project, stage, text, button) {
   setActionBusy(button, "正在回复"); clearError();
   const messages = [...history, { role: "user", text: value }];
   try {
-    const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/workshop-chat`, { method: "POST", body: JSON.stringify({ stage, messages }) });
+    const path = stage === "development" ? `/api/v1/projects/${encodeURIComponent(project.id)}/development-chat` : `/api/v1/projects/${encodeURIComponent(project.id)}/workshop-chat`;
+    const body = stage === "development" ? { messages } : { stage, messages };
+    const payload = await api(path, { method: "POST", body: JSON.stringify(body) });
     replaceProject(payload.project); render();
   } catch (error) {
     if (!online) {
       await loadProject(project.id);
       const latest = state.current;
-      const latestHistory = stage === "answers" ? list(latest?.workshop?.answer_transcript) : list(latest?.workshop?.transcript);
+      const latestHistory = teacherChatMessages(latest, stage);
       const saved = latestHistory.some((message) => message.role === "user" && String(message.text || "").trim() === value);
       if (saved) {
         showError("已检查服务端状态，这条回答已经保存，请继续当前对话。");
@@ -817,13 +825,16 @@ function renderWorkshopAnswers(project, plan) {
 function renderBackend(project, verified) {
   showOnly("#previewPanel");
   const backend = projectBackend(project); const tasks = list(project.tasks);
-  if (backend.status === "prd_health_check" || backend.status === "stage_task_ready" || backend.status === "stage_advanced") {
+  if (backend.status === "prd_health_check" || backend.status === "stage_task_ready" || backend.status === "stage_advanced" || (backend.status === "kit_self_check_failed" && !backend.stage_confirmed)) {
     const id = encodeURIComponent(project.id);
     const stage = backend.kit_stage || "阶段0";
-    const title = backend.status === "stage_advanced" ? `${stage} 已准备` : backend.status === "stage_task_ready" ? `${stage} 待确认` : "PRD 体检";
-    const copy = backend.status === "stage_advanced" ? `上一阶段已验收。请确认 ${stage} 任务后再开始这一阶段的外部开发。` : backend.status === "stage_task_ready" ? `方案确认已完成。请先确认 ${stage}，再把老师生成的本阶段任务交给外部编码工具。` : "已交接这次确认的 PRD 和方案。Idea to Launch 已建立阶段任务。";
-    const startLabel = backend.status === "stage_advanced" ? `确认 ${stage}，开始开发` : `确认 ${stage}，开始开发`;
-    $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块二 · ${escapeHtml(stage)}</span><h3>${title}</h3></div><span class="status-chip is-confirm">等你确认</span></div><p class="panel-copy">${copy}</p><div class="plan-grid"><div class="plan-block"><h4>已交接</h4><ul>${listHtml(backend.checks)}</ul></div><div class="plan-block"><h4>本阶段任务</h4><p class="stage-task-copy">${escapeHtml(backend.kit_task || "老师工具包已生成任务，点击确认后开始开发")}</p></div><div class="plan-block"><h4>后续阶段</h4><ul>${listHtml(backend.acceptance)}</ul></div></div><div class="panel-actions"><a class="secondary-button" href="/api/v1/projects/${id}/handoff">下载交接包</a><button class="primary-button" id="startBackendButton" type="button"><span>${startLabel}</span><span class="button-arrow">↗</span></button><button class="secondary-button" id="refreshBuildButton" type="button">刷新状态</button></div>`;
+    const title = backend.status === "stage_advanced" ? `${stage} 已准备` : backend.status === "stage_task_ready" ? `${stage} 待确认` : backend.status === "kit_self_check_failed" ? `${stage} 重新确认` : "PRD 体检";
+    const copy = backend.status === "stage_advanced" ? `上一阶段已验收。请确认 ${stage} 任务后再开始这一阶段的外部开发。` : backend.status === "stage_task_ready" ? `方案确认已完成。请先确认 ${stage}，再把老师生成的本阶段任务交给外部编码工具。` : backend.status === "kit_self_check_failed" ? `上次阶段自检没有通过。先回到自然语言对话，补齐本阶段产品决定，再重新开始开发。` : "已交接这次确认的 PRD 和方案。Idea to Launch 已建立阶段任务。";
+    const intro = !list(backend.stage_transcript).length ? `<div class="teacher-chat-message is-assistant"><span class="teacher-chat-role">阶段 Agent</span><p>进入 ${escapeHtml(stage)} 前，我会先用自然语言确认本阶段需要产品经理决定的事项。你可以直接回答，也可以按推荐方向选择。</p></div>` : "";
+    const startLabel = backend.stage_confirmed ? `确认 ${stage}，开始开发` : `完成对话后确认 ${stage}`;
+    const startButton = `<button class="primary-button" id="startBackendButton" type="button" ${backend.stage_confirmed ? "" : "disabled title=\"请先完成阶段自然语言对话\""}><span>${startLabel}</span><span class="button-arrow">↗</span></button>`;
+    $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块二 · ${escapeHtml(stage)} · 自然语言确认</span><h3>${title}</h3></div><span class="status-chip is-confirm">${backend.stage_confirmed ? "确认完成" : "先回答问题"}</span></div><p class="panel-copy">${copy}</p>${renderTeacherChat(project, "development", intro)}${renderDevelopmentSuggestions(project)}${teacherChatComposer("development")}<div class="plan-grid"><div class="plan-block"><h4>本阶段任务</h4><p class="stage-task-copy">${escapeHtml(backend.kit_task || "老师工具包已生成任务")}</p></div><div class="plan-block"><h4>后续阶段</h4><ul>${listHtml(backend.acceptance)}</ul></div></div><div class="panel-actions"><a class="secondary-button" href="/api/v1/projects/${id}/handoff">下载交接包</a>${startButton}<button class="secondary-button" id="refreshBuildButton" type="button">刷新状态</button></div>`;
+    bindTeacherChat(project, "development");
     $("#startBackendButton").addEventListener("click", () => startBackendBuild(project));
     $("#refreshBuildButton").addEventListener("click", () => loadProject(project.id));
     return;

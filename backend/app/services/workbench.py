@@ -89,10 +89,32 @@ def start_backend_development(store: Store, project_id: str, execution_mode: str
         raise KeyError(project_id)
     if project.status != ProjectStatus.BACKEND_BUILDING or project.backend is None:
         raise ValueError("只有已经完成方案确认的项目才能开始后端开发")
+    if not project.backend.stage_confirmed:
+        raise ValueError("请先完成本阶段自然语言确认")
     project.backend, snapshot = run_development(project.backend, execution_mode=execution_mode)
     project.backend.status = str(snapshot.get("status") or project.backend.status)
     project = store.upsert_project(project)
     return project, snapshot
+
+
+def development_chat(store: Store, project_id: str, messages: list[WorkshopMessage]) -> tuple[Project, list[dict]]:
+    project = store.get_project(project_id)
+    if project is None:
+        raise KeyError(project_id)
+    if project.status != ProjectStatus.BACKEND_BUILDING or project.backend is None:
+        raise ValueError("当前项目还不在开发阶段")
+    if project.backend.status not in {"stage_task_ready", "stage_advanced", "kit_self_check_failed"}:
+        raise ValueError("当前阶段已经开始开发或已进入自检，不能重复开启阶段对话")
+    events = teacher_engine.development_chat(project, messages)
+    project.backend.stage_transcript = list(messages)
+    text = _event_text(events)
+    if text:
+        project.backend.stage_transcript.append(WorkshopMessage(role="assistant", text=text))
+    project.backend.stage_suggestions = _event_suggestions(events)
+    if any(event.get("type") == "tool" and event.get("name") == "confirm_stage" for event in events):
+        project.backend.stage_confirmed = True
+    project.updated_at = now()
+    return store.upsert_project(project), events
 
 
 def verify_backend_development(store: Store, project_id: str) -> tuple[Project, dict[str, object]]:
@@ -133,6 +155,9 @@ def accept_backend_stage(store: Store, project_id: str, passed: bool, next_stage
         transition(project, ProjectStatus.BACKEND_VERIFIED, actor="user", evidence=["老师工具包阶段 0-2 已按原顺序通过"], pending=["user_acceptance"])
     else:
         project.backend.status = "stage_advanced"
+        project.backend.stage_confirmed = False
+        project.backend.stage_transcript = []
+        project.backend.stage_suggestions = []
     project = store.upsert_project(project)
     return project, result
 

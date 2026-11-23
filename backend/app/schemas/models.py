@@ -119,6 +119,9 @@ class BackendBuild(BaseModel):
     test_plan: list[str] = Field(default_factory=list)
     checks: list[str] = Field(default_factory=list)
     acceptance: list[str] = Field(default_factory=list)
+    stage_transcript: list[WorkshopMessage] = Field(default_factory=list)
+    stage_suggestions: list[str] = Field(default_factory=list)
+    stage_confirmed: bool = False
 
 
 class Confirmation(BaseModel):
@@ -225,6 +228,10 @@ class CreateProjectRequest(BaseModel):
 
 class WorkshopChatRequest(BaseModel):
     stage: Literal["intake", "answers"]
+    messages: list[WorkshopMessage] = Field(default_factory=list)
+
+
+class DevelopmentChatRequest(BaseModel):
     messages: list[WorkshopMessage] = Field(default_factory=list)
 
 

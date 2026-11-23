@@ -199,6 +199,9 @@ def test_external_kit_stage_requires_self_check_and_acceptance(tmp_path, monkeyp
     client, path, kit = setup_workflow(tmp_path, monkeypatch)
     project = client.post(path + "/confirm-plan", json={"confirmed": True}).json()["project"]
     assert project["status"] == "backend_building"
+    stored = client.app.state.store.get_project(project["id"])
+    stored.backend.stage_confirmed = True
+    client.app.state.store.upsert_project(stored)
     waiting = client.post(path + "/development/verify")
     assert waiting.status_code == 409
 
@@ -221,6 +224,27 @@ def test_external_kit_stage_requires_self_check_and_acceptance(tmp_path, monkeyp
     assert accepted.json()["stage"]["stage"] == "完成"
     assert accepted.json()["project"]["backend"]["kit_status"] == "completed"
     assert accepted.json()["project"]["status"] == "backend_verified"
+
+
+def test_stage_development_requires_natural_language_confirmation(tmp_path, monkeypatch):
+    client, path, _ = setup_workflow(tmp_path, monkeypatch)
+
+    def stage_chat(project, messages):
+        confirmed = any(message.role == "user" and "确认" in message.text for message in messages)
+        if confirmed:
+            return [{"type": "text", "delta": "已确认阶段 0 的产品决定，可以开始开发。"}, {"type": "tool", "name": "confirm_stage", "args": {}}]
+        return [{"type": "text", "delta": "阶段 0 需要确认：是否先完成 PRD 体检，不写代码？"}, {"type": "suggestions", "items": ["按推荐", "我想补充"]}]
+
+    monkeypatch.setattr(teacher_engine, "development_chat", stage_chat)
+    project = client.post(path + "/confirm-plan", json={"confirmed": True}).json()["project"]
+    first = client.post(path + "/development-chat", json={"messages": [{"role": "user", "text": "我准备开始"}]})
+    assert first.status_code == 200
+    assert first.json()["project"]["backend"]["stage_confirmed"] is False
+    assert client.post(path + "/build").status_code == 422
+    second = client.post(path + "/development-chat", json={"messages": first.json()["project"]["backend"]["stage_transcript"] + [{"role": "user", "text": "确认，按推荐开始"}]})
+    assert second.status_code == 200
+    assert second.json()["project"]["backend"]["stage_confirmed"] is True
+    assert client.post(path + "/build").status_code == 200
 
 
 def test_handoff_rejects_kit_that_does_not_materialize_stage_task(tmp_path, monkeypatch):
