@@ -218,6 +218,9 @@ def test_external_kit_stage_requires_self_check_and_acceptance(tmp_path, monkeyp
     assert checked.status_code == 200
     assert checked.json()["verification"]["ok"] is True
     assert checked.json()["project"]["backend"]["kit_status"] == "passed"
+    accepted_project = client.app.state.store.get_project(project["id"])
+    accepted_project.backend.stage_accepted = True
+    client.app.state.store.upsert_project(accepted_project)
 
     accepted = client.post(path + "/development/accept", json={"passed": True, "next_stage": "阶段1"})
     assert accepted.status_code == 200

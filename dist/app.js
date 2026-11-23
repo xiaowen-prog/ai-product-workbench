@@ -839,6 +839,10 @@ function renderBackend(project, verified) {
     $("#refreshBuildButton").addEventListener("click", () => loadProject(project.id));
     return;
   }
+  if ((backend.status === "kit_self_check_failed" || backend.status === "kit_self_check_passed") && backend.stage_confirmed) {
+    renderDevelopmentAcceptance(project);
+    return;
+  }
   const checks = backend.verification || backend.tests || backend.checks || [];
   const selfCheckFailed = backend.status === "kit_self_check_failed";
   const selfCheckOutput = String(backend.kit_last_output || "").trim();
@@ -1105,6 +1109,23 @@ async function acceptDevelopmentStage(project) {
     });
     replaceProject(payload.project); render();
   } catch (error) { restoreAction(button); showError(error.message); render(); }
+}
+
+function renderDevelopmentAcceptance(project) {
+  const backend = projectBackend(project);
+  const passed = backend.status === "kit_self_check_passed";
+  const stage = backend.kit_stage || "阶段0";
+  const intro = !list(backend.stage_transcript).length ? `<div class="teacher-chat-message is-assistant"><span class="teacher-chat-role">阶段 Agent</span><p>${passed ? "阶段自检已经通过。我会用自然语言说明验收结果，确认后才进入下一阶段。" : "阶段自检没有通过。我会说明缺口，你可以继续补充决定或让外部编码工具修复。"}</p></div>` : "";
+  const output = String(backend.kit_last_output || "").trim();
+  const action = passed
+    ? `<button class="primary-button" id="acceptStageButton" type="button" ${backend.stage_accepted ? "" : "disabled title=\"请先完成自然语言验收\""}><span>${backend.stage_accepted ? `确认 ${stage} 验收，进入下一阶段` : "完成对话后确认验收"}</span><span class="button-arrow">↗</span></button>`
+    : `<button class="primary-button" id="verifyBackendButton" type="button"><span>重新运行阶段自检</span><span class="button-arrow">↗</span></button>`;
+  showOnly("#previewPanel");
+  $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块二 · ${escapeHtml(stage)} · 自然语言验收</span><h3>${passed ? `${stage} 自检通过，等待验收` : `${stage} 自检未通过，先对话修正`}</h3></div><span class="status-chip ${passed ? "is-confirm" : "is-revise"}">${passed ? (backend.stage_accepted ? "验收已确认" : "等待验收") : "需要处理"}</span></div><p class="panel-copy">${passed ? "模型会用自然语言解释本阶段结果。只有你明确说“验收通过”，才会调用流程管家进入下一阶段。" : "这里不直接要求你读日志。先通过自然语言确认缺口，再让外部编码工具修复并重新自检。"}</p>${renderTeacherChat(project, "development", intro)}${renderDevelopmentSuggestions(project)}${teacherChatComposer("development")}<details class="delivery-details"><summary>自检证据<span>原始输出</span></summary><pre class="self-check-output">${escapeHtml(output || "暂无自检输出")}</pre></details><div class="panel-actions">${action}<button class="secondary-button" id="refreshBuildButton" type="button">刷新状态</button></div>`;
+  bindTeacherChat(project, "development");
+  if (passed) $("#acceptStageButton")?.addEventListener("click", () => acceptDevelopmentStage(project));
+  else $("#verifyBackendButton")?.addEventListener("click", () => verifyBackendStage(project));
+  $("#refreshBuildButton")?.addEventListener("click", () => loadProject(project.id));
 }
 
 async function confirmPlan(project, confirmed = true) {
