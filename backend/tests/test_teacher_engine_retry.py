@@ -43,7 +43,7 @@ def test_intake_agent_protocol_failure_gets_three_bounded_attempts(monkeypatch):
     _load_engine()
     from blueprint.agent import AgentFailed
 
-    calls = {"count": 0}
+    calls = {"count": 0, "agent_max_turns": []}
 
     @contextmanager
     def fake_runner(*, chat=False):
@@ -52,6 +52,7 @@ def test_intake_agent_protocol_failure_gets_three_bounded_attempts(monkeypatch):
 
     def flaky_run(*args, **kwargs):
         calls["count"] += 1
+        calls["agent_max_turns"].append(kwargs.get("agent_max_turns"))
         if calls["count"] < 3:
             raise AgentFailed("交卷连续 3 次不合格")
         return {"action": "ask", "question": "给谁用？", "suggestions": []}
@@ -63,3 +64,4 @@ def test_intake_agent_protocol_failure_gets_three_bounded_attempts(monkeypatch):
 
     assert result["action"] == "ask"
     assert calls["count"] == 3
+    assert calls["agent_max_turns"] == [6, 6, 6]

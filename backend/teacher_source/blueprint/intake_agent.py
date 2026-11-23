@@ -62,7 +62,7 @@ def ready(status: dict[str, str]) -> bool:
 
 
 def run_intake_agent(transcript_text: str, rounds_asked: int, user_wants_draft: bool, runner,
-                     log: Callable[[str], None] = lambda _m: None) -> dict:
+                     log: Callable[[str], None] = lambda _m: None, agent_max_turns: int = 3) -> dict:
     """返回 finish 的参数：{"action": "ask", "question", "suggestions"} 或 {"action": "draft", "name", "idea"}。"""
     forced = user_wants_draft or rounds_asked >= MAX_ROUNDS
     state: dict = {"status": None}
@@ -105,6 +105,6 @@ def run_intake_agent(transcript_text: str, rounds_asked: int, user_wants_draft: 
         forced="是：用户点了「信息够了」或已经问满轮数，这一轮必须整理草稿。" if forced else "否",
         first_time="是" if rounds_asked == 0 else "否")
     return run_agent("chat_intake_agent", load_prompt("chat_system"), prompt, tools, RESPOND_SCHEMA, runner,
-                     log=log, max_turns=3, check=check,
+                     log=log, max_turns=agent_max_turns, check=check,
                      finish_description="交出这一轮的动作：action=ask 时给一个问题（question）和可选的快捷回答（suggestions）；"
                                         "action=draft 时给产品名（name）和 Markdown 需求草稿（idea）。不合格会被退回。")

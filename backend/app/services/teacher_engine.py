@@ -136,6 +136,7 @@ def _run_intake_agent(transcript_text: str, rounds_asked: int, user_wants_draft:
                     rounds_asked=rounds_asked,
                     user_wants_draft=user_wants_draft,
                     runner=runner,
+                    agent_max_turns=6,
                     log=lambda _: None,
                 )
         except AgentFailed as exc:
