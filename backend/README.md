@@ -1,6 +1,6 @@
 # AI 产品工作台本地 API
 
-这是当前浅色纸张工作台使用的本地 FastAPI 后端。它与 dist/ 同源提供静态页面，负责多轮需求发现、需求与方案确认、后端验收、试用反馈、重启恢复和 V2 版本迭代。验收后的版本必须先进入 `trial` 并记录一次 feedback，才允许创建 V2。默认不调用真实模型，也不自动发布。
+这是当前浅色纸张工作台使用的融合本地 FastAPI 后端。老师第二个项目的任务、Job、AgentRun、权限、错误格式和 Swagger/OpenAPI 路由保留在 `teacher_backend/`。v29 工作台把老师第一个项目的需求澄清、PRD、方案审稿和交接包接到同一入口。完成需求确认、真实独立审稿和用户确认后，交接包进入本地 Idea to Launch 项目的阶段 0 PRD 体检。
 
 运行时依赖位于 `backend/requirements.txt`。本地测试和 TestClient 依赖位于 `backend/requirements-dev.txt`。
 
@@ -12,7 +12,7 @@
 
 backend/start.sh
 
-打开 http://127.0.0.1:8766/?mode=local。此模式默认要求 `backend/.env` 配置 `MODEL_API_KEY`；没有 Key 时，创建项目、确认方案和开启 V2 都会被后端拒绝。数据默认写入 `backend/data/workbench.json`，只保存在本机。
+打开 http://127.0.0.1:8770/。正式入口要求后端运行时配置 `MODEL_API_KEY`。需求澄清和独立审稿使用真实模型，Key 只在后端环境变量读取。工作台状态写入 `data/workbench.json`，老师开发项目状态写入 `data/agent_workbench.sqlite3`。
 
 部署到支持 Python 容器的公网平台时，启动入口会读取平台注入的 `PORT`，默认监听 `0.0.0.0`；本地需要限制为回环地址时可设置 `AI_WORKBENCH_HOST=127.0.0.1`。仓库根目录的 `Dockerfile` 可直接构建 FastAPI 运行时。公网部署前必须在平台 Secret 中配置 `MODEL_API_KEY`，不要把 Key 写进仓库或镜像；`AI_WORKBENCH_DATA_DIR` 默认仍是容器内 JSON 文件，若平台会重启或扩容，需要另接持久化存储后再把重启恢复当成生产能力。
 
@@ -25,4 +25,4 @@ backend/start.sh
 PYTHONPATH=backend backend/.venv/bin/pytest -q backend/tests
 node --check dist/app.js
 
-真实模型只从 backend/.env 或进程环境读取 MODEL_API_KEY；未配置时，前端会禁用真实模型按钮。验收后，`GET /api/v1/projects/{id}/preview` 返回同源 `/runtime/{id}/` 地址；`POST /api/v1/projects/{id}/preview/verify` 会检查运行时页面、健康检查和核心动作，验证通过后才能开始试用。运行时页面的输入动作由本地规则引擎执行，不代表公网部署或真实模型调用。
+真实模型只从 backend/.env 或进程环境读取 `MODEL_API_KEY`。老师原有开发接口可从 `/docs` 和 `/openapi.json` 查看。`GET /api/v1/projects/{id}/handoff` 只在方案确认和交接包生成后开放。后端验收、预览验证、试用反馈和 V2 仍保留原项目的门禁。

@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import HTMLResponse
+from typing import Literal
+from fastapi.responses import FileResponse, HTMLResponse
+from pathlib import Path
 
 from app.core.config import model_settings
 from pydantic import BaseModel, Field
 
-from app.schemas.models import AcceptanceRequest, AnswerRequest, ConfirmationRequest, CreateProjectRequest, ProjectListResponse, RuntimeActionRequest, TrialFeedbackRequest, public_project
-from app.services.model_client import ModelClientError
+from app.schemas.models import AcceptanceRequest, AnswerRequest, ConfirmationRequest, CreateProjectRequest, IntentConfirmationRequest, ProjectListResponse, RuntimeActionRequest, TrialFeedbackRequest, WorkshopChatRequest, WorkshopChatSaveRequest, public_project
 from app.services.preview_runtime import ensure_preview, now as runtime_now, render_runtime_page, run_runtime, verify_runtime
+from teacher_backend.services.model_provider import ModelProviderError
+from app.services import teacher_engine
 from app.services.store import Store
-from app.services.workbench import add_supplement, answer_project, confirm_intent, confirm_plan, create_iteration, create_project, generate_real_plan, modify_plan, record_acceptance, record_trial_feedback, start_trial
+from app.services.workbench import accept_backend_stage, add_supplement, answer_project, confirm_intent, confirm_plan, create_iteration, create_project, development_status, fill_workshop_options, generate_real_plan, modify_plan, record_acceptance, record_trial_feedback, resume_workshop, start_backend_development, start_trial, verify_backend_development, workshop_chat, save_workshop_answers
 
 
 router = APIRouter(prefix="/api/v1")
@@ -24,6 +27,16 @@ class TextRequest(BaseModel):
 
 class IterationRequest(BaseModel):
     change_request: str = Field(min_length=1, max_length=500)
+
+
+class BuildRequest(BaseModel):
+    execution_mode: Literal["real"] = "real"
+
+
+class DevelopmentAcceptRequest(BaseModel):
+    passed: bool
+    next_stage: str | None = Field(default=None, pattern="^阶段[0-9]+(?:-[0-9]+)?$|^完成$")
+    note: str = Field(default="", max_length=2000)
 
 
 def external_url(request: Request, route_name: str, **path_params: str) -> str:
@@ -51,11 +64,19 @@ def get_model_status(request: Request) -> dict[str, object]:
     return {
         "configured": bool(settings.api_key),
         "required": required,
+        "teacher_workflow": True,
         "can_build": bool(settings.api_key) or not required,
         "provider": "openai-compatible",
         "base_url": settings.base_url,
         "model": settings.model,
         "max_retries": settings.max_retries,
+        "key_masked": f"{settings.api_key[:4]}…{settings.api_key[-4:]}" if len(settings.api_key) > 12 else ("已填写" if settings.api_key else ""),
+        "providers": [
+            {"key": "deepseek", "name": "DeepSeek（推荐）", "model": "deepseek-chat", "base_url": "https://api.deepseek.com/v1", "key_page": "https://platform.deepseek.com"},
+            {"key": "glm", "name": "智谱 GLM", "model": "glm-4.5", "base_url": "https://open.bigmodel.cn/api/paas/v4", "key_page": "https://open.bigmodel.cn"},
+            {"key": "kimi", "name": "Kimi 月之暗面", "model": "kimi-k2-0711-preview", "base_url": "https://api.moonshot.cn/v1", "key_page": "https://platform.moonshot.cn"},
+            {"key": "anthropic", "name": "Anthropic 官方", "model": "claude-sonnet-4-5", "base_url": "https://api.anthropic.com/v1", "key_page": "https://console.anthropic.com"},
+        ],
     }
 
 
@@ -78,14 +99,78 @@ def get(project_id: str, store: Store = Depends(get_store)) -> dict:
     return {"project": public_project(project)}
 
 
-@router.post("/projects/{project_id}/answers")
+@router.post("/projects/{project_id}/workshop-resume")
+def restore_workshop(project_id: str, store: Store = Depends(get_store)) -> dict:
+    return _workshop_edit(resume_workshop, store, project_id)
+
+
+@router.post("/projects/{project_id}/questions/{question_id}/options", include_in_schema=False)
+def question_options(project_id: str, question_id: str, store: Store = Depends(get_store)) -> dict:
+    return _workshop_edit(fill_workshop_options, store, project_id, question_id)
+
+@router.post("/projects/{project_id}/workshop-chat")
+def workshop_chat_route(project_id: str, request: WorkshopChatRequest, store: Store = Depends(get_store)) -> dict:
+    try:
+        project, events = workshop_chat(store, project_id, request.stage, request.messages)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail={"code": "invalid_transition", "message": str(exc)}) from exc
+    except teacher_engine.TeacherEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
+    return {"project": public_project(project), "events": events}
+
+
+@router.post("/projects/{project_id}/workshop-chat/save")
+def workshop_chat_save_route(project_id: str, request: WorkshopChatSaveRequest, store: Store = Depends(get_store)) -> dict:
+    try:
+        project = save_workshop_answers(store, project_id, request.answers)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail={"code": "invalid_transition", "message": str(exc)}) from exc
+    except teacher_engine.TeacherEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
+    return {"project": public_project(project)}
+
+
+
+@router.post("/projects/{project_id}/replan")
+def replan(project_id: str, store: Store = Depends(get_store)) -> dict:
+    return _workshop_edit(generate_real_plan, store, project_id, None)
+
+
+def _workshop_edit(operation, store: Store, project_id: str, *args) -> dict:
+    try:
+        return {"project": public_project(operation(store, project_id, *args))}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail={"code": "invalid_transition", "message": str(exc)}) from exc
+    except teacher_engine.TeacherEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@router.get("/projects/{project_id}/handoff")
+def download_handoff(project_id: str, store: Store = Depends(get_store)) -> FileResponse:
+    project = store.get_project(project_id)
+    if project is None or not project.confirmations.plan or not project.plan or not project.plan.teacher_handoff_path:
+        raise HTTPException(status_code=404, detail={"code": "handoff_not_ready", "message": "方案确认后可下载交接包"})
+    path = Path(project.plan.teacher_handoff_path).resolve()
+    root = (store.path.parent / "teacher-workspaces" / project.id).resolve()
+    if not path.is_relative_to(root) or not path.is_file():
+        raise HTTPException(status_code=404, detail={"code": "handoff_not_found", "message": "找不到交接包"})
+    return FileResponse(path, filename=project.plan.teacher_handoff_name or "交接包.zip")
+
+
+@router.post("/projects/{project_id}/answers", include_in_schema=False)
 def answer(project_id: str, request: AnswerRequest, store: Store = Depends(get_store)) -> dict:
     try:
         project = answer_project(store, project_id, request)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail={"code": "invalid_answers", "message": str(exc)}) from exc
+        raise HTTPException(status_code=409, detail={"code": "invalid_transition", "message": str(exc)}) from exc
     return {"project": public_project(project)}
 
 
@@ -96,9 +181,9 @@ def discovery_answers(project_id: str, request: AnswerRequest, store: Store = De
 
 
 @router.post("/projects/{project_id}/confirm-intent")
-def intent_confirmation(project_id: str, request: ConfirmationRequest, store: Store = Depends(get_store)) -> dict:
+def intent_confirmation(project_id: str, request: IntentConfirmationRequest, store: Store = Depends(get_store)) -> dict:
     try:
-        project = confirm_intent(store, project_id, request.confirmed, request.note)
+        project = confirm_intent(store, project_id, request.confirmed, request.note, draft=request.draft)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
     except ValueError as exc:
@@ -155,17 +240,50 @@ def iteration(project_id: str, request: IterationRequest, http_request: Request,
     return {"project": public_project(project)}
 
 
-@router.post("/projects/{project_id}/build", include_in_schema=False)
-def build_backend(project_id: str, http_request: Request, store: Store = Depends(get_store)) -> dict:
-    """兼容需要显式 build 按钮的客户端；确认方案后同步生成首版后端交付检查。"""
-    ensure_model_configured(http_request)
+@router.post("/projects/{project_id}/build")
+def build_backend(project_id: str, http_request: Request, request: BuildRequest | None = None, store: Store = Depends(get_store)) -> dict:
+    """Prepare the original idea-to-launch-kit stage for its external coding tool."""
+    execution_mode = request.execution_mode if request else "real"
+    if execution_mode == "real":
+        ensure_model_configured(http_request)
     try:
-        project = confirm_plan(store, project_id, True, "用户确认方案后开始开发")
+        project, development = start_backend_development(store, project_id, execution_mode)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail={"code": "invalid_plan", "message": str(exc)}) from exc
-    return {"project": public_project(project)}
+    return {"project": public_project(project), "development": development}
+
+
+@router.get("/projects/{project_id}/development")
+def development(project_id: str, store: Store = Depends(get_store)) -> dict:
+    try:
+        project, snapshot = development_status(store, project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
+    return {"project": public_project(project), "development": snapshot}
+
+
+@router.post("/projects/{project_id}/development/verify")
+def development_verify(project_id: str, store: Store = Depends(get_store)) -> dict:
+    try:
+        project, verification = verify_backend_development(store, project_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail={"code": "invalid_transition", "message": str(exc)}) from exc
+    return {"project": public_project(project), "verification": verification}
+
+
+@router.post("/projects/{project_id}/development/accept")
+def development_accept(project_id: str, request: DevelopmentAcceptRequest, store: Store = Depends(get_store)) -> dict:
+    try:
+        project, result = accept_backend_stage(store, project_id, request.passed, request.next_stage, request.note)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail={"code": "invalid_transition", "message": str(exc)}) from exc
+    return {"project": public_project(project), "stage": result}
 
 
 @router.post("/projects/{project_id}/acceptance")
@@ -210,9 +328,6 @@ def real_plan(project_id: str, request: AnswerRequest, store: Store = Depends(ge
         raise HTTPException(status_code=404, detail={"code": "project_not_found", "message": "找不到这个项目"}) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail={"code": "invalid_answers", "message": str(exc)}) from exc
-    except ModelClientError as exc:
-        status_code = 503 if exc.code == "model_not_configured" else 502
-        raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from exc
     return {"project": public_project(project)}
 
 
@@ -225,7 +340,8 @@ def preview(project_id: str, request: Request, store: Store = Depends(get_store)
         raise HTTPException(status_code=409, detail={"code": "preview_not_ready", "message": "先完成需求确认、方案确认和后端验收，再打开预览"})
     ensure_preview(project)
     project = store.upsert_project(project)
-    source = "真实模型" if any(task.kind == "generate_plan_real" and task.status == "succeeded" for task in project.tasks) else "mock"
+    real_backend = bool(project.backend and project.backend.execution_mode == "real")
+    source = "真实模型" if real_backend or any(task.kind == "generate_plan_real" and task.status == "succeeded" for task in project.tasks) else "结构化方案"
     artifact = project.preview
     return {
         "project_id": project.id,
@@ -269,9 +385,11 @@ def runtime_action(project_id: str, request: RuntimeActionRequest, store: Store 
     if project.plan is None or project.status not in {"preview_ready", "trial"}:
         raise HTTPException(status_code=409, detail={"code": "runtime_not_ready", "message": "先完成后端验收，再运行产品预览"})
     try:
-        return {"result": run_runtime(project, request.input)}
+        return {"result": run_runtime(project, request.input, request.messages)}
     except ValueError as exc:
         raise HTTPException(status_code=422, detail={"code": "invalid_runtime_input", "message": str(exc)}) from exc
+    except ModelProviderError as exc:
+        raise HTTPException(status_code=502, detail={"code": exc.code, "message": str(exc)}) from exc
 
 
 @runtime_router.get("/runtime/{project_id}/", name="runtime_page", response_class=HTMLResponse)

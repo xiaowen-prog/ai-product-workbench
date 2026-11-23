@@ -72,6 +72,7 @@ def _migrate_backend(value: Any) -> Any:
         return value
     return {
         "status": str(value.get("status") or "pending"),
+        **{key: value[key] for key in ("teacher_task_id", "teacher_run_id", "execution_mode", "launch_project", "kit_stage", "kit_status", "kit_task_path", "kit_task", "kit_last_output") if key in value},
         "api_contract": _string_list(value.get("api_contract", value.get("api"))),
         "data_model": _string_list(value.get("data_model", value.get("data_model_items"))),
         "test_plan": _string_list(value.get("test_plan", value.get("tests"))),
@@ -222,6 +223,16 @@ class Store:
                 raw = json.loads(self.path.read_text(encoding="utf-8"))
                 migrated_raw, migrated = _migrate_payload(raw)
                 payload = StorePayload.model_validate(migrated_raw)
+                for project in payload.projects:
+                    if project.workshop is None and project.questions and project.status in {
+                        "needs_discovery",
+                        "needs_intent_confirmation",
+                        "needs_plan_confirmation",
+                    }:
+                        # 历史版本的固定题不能继续进入老师流程。
+                        # 保留已有 answers、intent 和 plan，重新从老师入口恢复。
+                        project.questions = []
+                        migrated = True
                 if migrated:
                     self.save(payload)
                 return payload
@@ -250,12 +261,13 @@ class Store:
         return next((project for project in self.list_projects() if project.id == project_id), None)
 
     def upsert_project(self, project: Project) -> Project:
-        payload = self.load()
-        for index, existing in enumerate(payload.projects):
-            if existing.id == project.id:
-                payload.projects[index] = project
-                break
-        else:
-            payload.projects.insert(0, project)
-        self.save(payload)
+        with self._lock:
+            payload = self.load()
+            for index, existing in enumerate(payload.projects):
+                if existing.id == project.id:
+                    payload.projects[index] = project
+                    break
+            else:
+                payload.projects.insert(0, project)
+            self.save(payload)
         return project

@@ -3,8 +3,12 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from html import escape
+from contextlib import contextmanager
+from pathlib import Path
 
-from app.schemas.models import PreviewArtifact, Project, RuntimeCheck
+from app.schemas.models import PreviewArtifact, Project, RuntimeCheck, WorkshopMessage
+from app.services import teacher_engine
+from teacher_backend.services.model_provider import ModelProviderError
 
 
 def now() -> datetime:
@@ -22,35 +26,85 @@ def ensure_preview(project: Project) -> PreviewArtifact:
     return project.preview
 
 
-def run_runtime(project: Project, input_text: str) -> dict[str, object]:
-    cleaned = " ".join(input_text.split())
-    if not cleaned:
-        raise ValueError("请输入一段需要整理的内容")
-    title = project.plan.title if project.plan else project.idea
-    segments = [part.strip("，。；; ") for part in input_text.replace("\r", "").split("\n") if part.strip()]
-    deliverables = segments[:3] or [cleaned[:80]]
+@contextmanager
+def _play_model():
+    """Build the teacher playground model with the same real runner as intake and plan."""
+    teacher_engine._load_engine()
+    from blueprint.chat import AnthropicChat
+    with teacher_engine._runner(chat=False) as runner:
+        yield runner, AnthropicChat(runner)
+
+
+def _teacher_plan(project: Project) -> tuple[dict, Path, str]:
+    if not project.plan or not project.plan.teacher_plan:
+        raise ValueError("方案里还没有老师方案，先完成方案推导")
+    workspace = Path(project.plan.teacher_workspace_path or "")
+    prd_path = workspace / "PRD.md"
+    if not prd_path.is_file():
+        raise ValueError("找不到老师方案的 PRD 工作区")
+    return project.plan.teacher_plan, workspace, prd_path.read_text(encoding="utf-8")
+
+
+def _play_result(events: list[dict], title: str, runner) -> dict[str, object]:
+    text = "".join(str(item.get("delta") or "") for item in events if item.get("type") == "text").strip()
+    steps = [item.get("data") for item in events if item.get("type") == "data" and item.get("name") == "play_step"]
+    deliverables = []
+    for step in steps:
+        if isinstance(step, dict):
+            wire = str(step.get("wire") or "").strip()
+            if wire:
+                deliverables.append(wire)
+    if not deliverables and text:
+        deliverables = [line.strip() for line in text.splitlines() if line.strip()][:3]
     return {
         "title": title,
-        "summary": cleaned[:240],
+        "summary": text,
         "deliverables": deliverables,
-        "quote_hint": "先确认交付物、时间和修改轮次，再给出正式报价。",
-        "next_step": "把这份整理结果发给客户确认范围。",
-        "mode": "deterministic_runtime",
+        "quote_hint": "",
+        "next_step": "如果结果和预期不一致，请记录反馈并带入下一版需求。",
+        "mode": "teacher_playground",
+        "model": getattr(runner, "model", ""),
+        "usage": runner.budget.summary() if getattr(runner, "budget", None) else {},
+        "events": events,
+        "steps": steps,
     }
+
+
+def run_runtime(project: Project, input_text: str, messages: list[WorkshopMessage] | None = None) -> dict[str, object]:
+    cleaned = " ".join(input_text.split())
+    if not cleaned:
+        raise ValueError("请输入一段要试用的内容")
+    teacher_engine._load_engine()
+    from blueprint import chat, playground
+
+    plan, workspace, prd = _teacher_plan(project)
+    title = project.plan.title if project.plan else project.idea
+    with _play_model() as (runner, model):
+        # The teacher playground caches the role intro by plan fingerprint.
+        intro = playground.play_intro(plan, workspace, model)
+        transcript = [chat.Message(role=item.role, text=item.text) for item in (messages or [])]
+        if not any(item.role == "user" and item.text.strip() == cleaned for item in transcript):
+            transcript.append(chat.Message(role="user", text=cleaned))
+        events = list(playground.play_events(plan, transcript, prd, model))
+        result = _play_result(events, title, runner)
+        result["intro"] = {**intro, "text": playground.intro_text(intro["role"])}
+        return result
 
 
 def verify_runtime(project: Project) -> PreviewArtifact:
     artifact = ensure_preview(project)
     try:
-        run_runtime(project, "客户需要一份需求整理和报价单草稿")
+        result = run_runtime(project, "请按方案处理一条真实用户请求")
+        if not result.get("summary"):
+            raise ValueError("老师试玩没有返回可用回复")
         artifact.checks = [
             RuntimeCheck(id="runtime_page", label="运行时页面", status="passed", detail="页面路由已生成"),
             RuntimeCheck(id="health", label="健康检查", status="passed", detail="运行时可响应"),
-            RuntimeCheck(id="core_action", label="核心动作", status="passed", detail="输入可生成结构化结果"),
+            RuntimeCheck(id="core_action", label="核心动作", status="passed", detail=f"老师 playground 已返回回复 {result.get('model', '')}"),
         ]
         artifact.status = "verified"
         artifact.verified_at = now()
-    except ValueError as exc:
+    except (ModelProviderError, ValueError) as exc:
         artifact.checks = [RuntimeCheck(id="core_action", label="核心动作", status="failed", detail=str(exc))]
         artifact.status = "failed"
         artifact.verified_at = None
@@ -87,15 +141,14 @@ button {{ margin-top:14px; padding:11px 15px; border:0; border-radius:8px; color
 .foot {{ margin-top:22px; color:#89948b; font-size:11px; line-height:1.6; }}
 </style></head><body><main>
 <div class="eyebrow">LOCAL RUNTIME PREVIEW</div><h1>{safe_title}</h1><p class="summary">{safe_summary}</p>
-<div class="runtime-note"><span class="dot"></span><span>本地可运行预览 · 规则引擎结果</span><span class="health" id="health">检查中…</span></div>
+<div class="runtime-note"><span class="dot"></span><span>本地可运行预览 · 真实模型</span><span class="health" id="health">检查中…</span></div>
 <section class="card"><form id="runtimeForm"><label for="source">输入一段真实需求</label><textarea id="source" placeholder="例如：客户需要一个两周内交付的报价单草稿，包含需求整理、交付范围和两轮修改。"></textarea><button id="run" type="submit">生成整理结果 ↗</button></form><div id="result" class="result"></div></section>
-<p class="foot">这是 AI 产品工作台生成的本地运行时预览。结果由当前项目的规则运行时生成，不代表已部署到公网或已接入真实模型。</p>
+<p class="foot">本页面通过本地后端调用已配置的真实模型。失败时显示错误，不用示例结果替代。</p>
 </main><script>
-const runtime = {payload};
-const form = document.querySelector('#runtimeForm'); const source = document.querySelector('#source'); const run = document.querySelector('#run'); const result = document.querySelector('#result'); const health = document.querySelector('#health');
+const runtime = {payload}; const form = document.querySelector('#runtimeForm'); const source = document.querySelector('#source'); const run = document.querySelector('#run'); const result = document.querySelector('#result'); const health = document.querySelector('#health');
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[char]));
 fetch(runtime.healthUrl).then(r => r.ok ? r.json() : Promise.reject()).then((payload) => health.textContent = payload.verified ? '运行正常 · 已验收' : '运行正常 · 待验收').catch(() => health.textContent = '运行检查失败');
 form.addEventListener('submit', async (event) => {{ event.preventDefault(); if (!source.value.trim()) {{ source.focus(); return; }} run.disabled = true; run.textContent = '生成中…';
-  try {{ const response = await fetch(runtime.actionUrl, {{ method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{input:source.value}}) }}); const data = await response.json(); if (!response.ok) throw new Error(data.error?.message || '运行失败'); const item = data.result; result.innerHTML = `<h2>${{escapeHtml(item.title)}}</h2><p>${{escapeHtml(item.summary)}}</p><strong>整理出的交付物</strong><ul>${{item.deliverables.map(value => `<li>${{escapeHtml(value)}}</li>`).join('')}}</ul><p><strong>报价提示：</strong>${{escapeHtml(item.quote_hint)}}</p><p><strong>下一步：</strong>${{escapeHtml(item.next_step)}}</p>`; result.classList.add('show'); }} catch (error) {{ result.textContent = escapeHtml(error.message); result.classList.add('show'); }} finally {{ run.disabled = false; run.textContent = '生成整理结果 ↗'; }}
+  try {{ const response = await fetch(runtime.actionUrl, {{ method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{input:source.value}}) }}); const data = await response.json(); if (!response.ok) throw new Error(data.error?.message || data.detail?.message || '运行失败'); const item = data.result; result.innerHTML = `<h2>${{escapeHtml(item.title)}}</h2><p>${{escapeHtml(item.summary)}}</p><strong>整理出的交付物</strong><ul>${{item.deliverables.map(value => `<li>${{escapeHtml(value)}}</li>`).join('')}}</ul><p><strong>模型：</strong>${{escapeHtml(item.model || '已调用')}}</p><p><strong>下一步：</strong>${{escapeHtml(item.next_step)}}</p>`; result.classList.add('show'); }} catch (error) {{ result.textContent = escapeHtml(error.message); result.classList.add('show'); }} finally {{ run.disabled = false; run.textContent = '生成整理结果 ↗'; }}
 }});
 </script></body></html>'''

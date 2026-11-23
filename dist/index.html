@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#171e32" />
   <title>AI 产品工作台 · 创作空间</title>
-  <link rel="stylesheet" href="app.css?v=20261119-30" />
+  <link rel="stylesheet" href="app.css?v=20261119-29&cache=20261120-50" />
 </head>
 <body>
   <div id="workbenchShell" class="shell is-entry">
@@ -23,7 +23,7 @@
     <div class="workbench">
       <header class="topbar">
         <div class="topbar-location"><button id="openNavigationButton" class="mobile-nav-button" type="button" aria-controls="projectNavigation" aria-expanded="false"><svg class="ui-icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>项目</span></button><span class="breadcrumb-root">创作空间</span><span class="breadcrumb-divider">/</span><span>产品工作台</span></div>
-        <div class="topbar-actions"><button id="helpButton" class="help-button" type="button">使用说明</button><span class="mode-pill"><span class="status-dot"></span>浏览器 mock · localStorage</span></div>
+        <div class="topbar-actions"><button id="settingsButton" class="help-button" type="button">模型设置</button><button id="helpButton" class="help-button" type="button">使用说明</button><span class="mode-pill"><span class="status-dot"></span>本地 API</span></div>
       </header>
       <main>
         <section id="introBlock" class="intro" aria-label="创作空间介绍"><span class="studio-eyebrow"><span></span> 从想法到第一版</span><span class="intro-caption">想清楚一点，向前走一步。</span></section>
@@ -77,7 +77,7 @@
       <footer><span>AI 产品工作台 · 浏览器 mock</span><span>你的想法，值得一个开始。</span></footer>
     </div>
   </div>
-  <script>window.__ONLINE_PREVIEW__ = !["local"].includes(new URLSearchParams(window.location.search).get("mode"));</script>
-  <script src="app.js?v=20261119-30" defer></script>
+  <script>window.__ONLINE_PREVIEW__ = new URLSearchParams(location.search).get("mode") === "offline-demo";</script>
+  <script src="app.js?v=20261119-29&cache=20261120-50" defer></script>
 </body>
 </html>

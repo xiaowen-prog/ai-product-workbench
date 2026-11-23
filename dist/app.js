@@ -1,4 +1,4 @@
-const state = { projects: [], current: null, model: null, modelUnavailable: false, creating: false, helpOpen: false };
+const state = { projects: [], current: null, model: null, modelUnavailable: false, creating: false, helpOpen: false, inflightChats: new Set() };
 const online = Boolean(window.__ONLINE_PREVIEW__);
 const offlineDemo = new URLSearchParams(window.location.search).get("mode") === "offline-demo";
 const $ = (selector) => document.querySelector(selector);
@@ -31,7 +31,13 @@ function pickModelStatus(payload) {
   return {
     configured: Boolean(src.configured),
     required: Boolean(src.required),
-    can_build: Boolean(src.can_build)
+    teacher_workflow: Boolean(src.teacher_workflow),
+    can_build: Boolean(src.can_build),
+    provider: src.provider || "",
+    model: src.model || "",
+    base_url: src.base_url || "",
+    key_masked: src.key_masked || "",
+    providers: Array.isArray(src.providers) ? src.providers : [],
   };
 }
 function canStartTrial(project) {
@@ -284,6 +290,23 @@ function setStartButton(start, { disabled, loading, label }) {
   start.classList.toggle("is-loading", Boolean(loading));
   if (span) span.textContent = label;
 }
+
+function setActionBusy(button, label) {
+  if (!button) return;
+  const textNode = button.querySelector("span:not(.button-arrow)") || button;
+  button.dataset.originalLabel = textNode.textContent;
+  button.disabled = true;
+  button.classList.add("is-loading");
+  textNode.textContent = label;
+}
+
+function restoreAction(button) {
+  if (!button) return;
+  const textNode = button.querySelector("span:not(.button-arrow)") || button;
+  if (button.dataset.originalLabel) textNode.textContent = button.dataset.originalLabel;
+  button.disabled = false;
+  button.classList.remove("is-loading");
+}
 function renderStartGate() {
   const gate = $("#setupGate");
   const start = $("#startBuildButton");
@@ -314,10 +337,11 @@ function renderStartGate() {
     $("#refreshModelButton")?.addEventListener("click", async () => { await loadModelStatus(); render(); });
     return;
   }
-  gate.classList.remove("hidden");
   if (state.model.configured) {
-    gate.innerHTML = "<strong>AI 服务已配置</strong><span>搭建会使用后端配置的模型。Key 不会进入浏览器，这里也不会回显密钥。</span>";
+    gate.innerHTML = "";
+    gate.classList.add("hidden");
   } else {
+    gate.classList.remove("hidden");
     gate.innerHTML = '<strong>当前为离线结构化模式</strong><span>后端未要求 API Key，现在可以使用本地结构化方案。这不是真实模型，也不代表已经配置密钥。如要使用真实模型，请在 <code>backend/.env</code> 配置 <code>MODEL_API_KEY</code> 并重启后端。</span>';
   }
   setStartButton(start, { disabled: false, loading: false, label: "开始搭建" });
@@ -332,7 +356,7 @@ function renderWelcomeGuide() {
     ? state.modelUnavailable
       ? "这是本地 API 模式：先启动 backend/start.sh，工作台才能读取 API Key 状态。没有 Key 也可以单独查看离线示例。"
       : state.model?.configured
-        ? "AI 服务已经配置好，可以直接开始真实搭建；Key 只保存在后端，不会进入浏览器。"
+        ? "可以直接开始真实搭建，回答会逐步收敛产品方向。"
         : "这是本地 API 模式：先配置服务，再开始真实搭建。没有 Key 也可以单独查看离线示例。"
     : offlineDemo
       ? "这是独立离线示例，不需要 API Key；输入一句话就可以体验完整流程。"
@@ -386,7 +410,8 @@ function render() {
   if (isUnknownProject(project)) { setFlow(-1, project); renderUnknownStatus(project); renderProjects(); return; }
   const status = statusOf(project);
   setFlow(phaseForStatus(status, project), project);
-  if (status === "needs_discovery") renderDiscovery(project);
+  if (!online && state.model?.teacher_workflow && !project.workshop && phaseForStatus(status, project) < 4) renderWorkshopResume(project);
+  else if (status === "needs_discovery") renderDiscovery(project);
   else if (status === "needs_intent_confirmation") renderRequirements(project);
   else if (status === "needs_plan_confirmation") renderPlanConfirmation(project);
   else if (status === "backend_building") renderBackend(project, false);
@@ -394,6 +419,53 @@ function render() {
   else if (status === "trial") renderTrial(project);
   else renderUnknownStatus(project);
   renderProjects();
+}
+
+function renderWorkshopResume(project) {
+  showOnly("#questionPanel");
+  $("#questionPanel").innerHTML = '<div class="panel-heading"><div><span class="section-kicker">需求澄清</span><h3>继续核对这个项目的需求</h3></div></div><p class="panel-copy">会带上已记录的回答，按 Agent 工坊流程检查还有哪些需要确认。</p><div class="panel-actions"><button class="primary-button" id="resumeWorkshopButton" type="button">继续需求澄清</button></div>';
+  $("#resumeWorkshopButton").addEventListener("click", (event) => workshopAction(project, "workshop-resume", event.currentTarget, "正在检查需求"));
+}
+
+function renderWorkshopTranscript(project, extra = "") {
+  const messages = list(project.workshop?.transcript).filter((message) => String(message?.text || "").trim());
+  const transcript = messages.map((message) => `<div class="teacher-chat-message is-${message.role === "user" ? "user" : "assistant"}"><span class="teacher-chat-role">${message.role === "user" ? "你" : "Agent 工坊"}</span><p>${escapeHtml(message.text)}</p></div>`).join("");
+  return `<div class="teacher-chat-thread">${transcript}${extra}</div>`;
+}
+
+function workshopQuestionProgress(project) {
+  const total = Object.keys(project.workshop?.originals || {}).length;
+  const pending = list(project.workshop?.pending);
+  if (!total) return "";
+  return `第 ${Math.min(total, total - pending.length + 1)} / ${total} 题`;
+}
+
+async function workshopAction(project, action, button, busy, body = undefined) {
+  setActionBusy(button, busy); clearError();
+  try {
+    const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/${action}`, {
+      method: "POST", body: body ? JSON.stringify(body) : undefined,
+    });
+    if (state.current?.id === project.id) { replaceProject(payload.project); render(); }
+  } catch (error) { restoreAction(button); showError(error.message); }
+}
+
+function bindWorkshopQuestion(project, panel, question) {
+  panel.querySelectorAll("[data-question-option], [data-question-recommend]").forEach((button) => {
+    button.addEventListener("click", () => selectQuestionOption(button.closest("[data-question-card]"), button.dataset.optionValue || button.dataset.recommendValue));
+  });
+  panel.querySelector("#answerButton")?.addEventListener("click", submitAnswers);
+  panel.querySelector("#workshopOptionsButton")?.addEventListener("click", (event) => {
+    workshopAction(project, `questions/${encodeURIComponent(question.id)}/options`, event.currentTarget, "正在准备选项");
+  });
+  panel.querySelectorAll("[data-workshop-save]").forEach((button) => {
+    button.addEventListener("click", (event) => workshopAction(project, "replan", event.currentTarget, "正在保存并重新推导"));
+  });
+  panel.querySelectorAll("[data-workshop-reply]").forEach((button) => {
+    button.addEventListener("click", () => workshopAction(project, "answers", button, "正在整理回答", {
+      answers: { [question.id]: button.dataset.workshopReply },
+    }));
+  });
 }
 
 function renderUnknownStatus(project) {
@@ -469,19 +541,94 @@ function selectQuestionOption(card, value) {
   });
 }
 
+function teacherChatMessages(project, stage) {
+  return stage === "answers" ? list(project.workshop?.answer_transcript) : list(project.workshop?.transcript);
+}
+
+function renderTeacherChat(project, stage, extra = "") {
+  const messages = teacherChatMessages(project, stage).filter((message) => String(message?.text || "").trim());
+  const transcript = messages.map((message) => `<div class="teacher-chat-message is-${message.role === "user" ? "user" : "assistant"}"><span class="teacher-chat-role">${message.role === "user" ? "你" : "Agent 工坊"}</span><p>${escapeHtml(message.text)}</p></div>`).join("");
+  return `<div class="teacher-chat-thread">${transcript}${extra}</div>`;
+}
+
+function teacherOptionSuggestions(project, stage) {
+  const messages = teacherChatMessages(project, stage);
+  const assistant = [...messages].reverse().find((message) => message.role === "assistant");
+  if (!assistant) return [];
+  return String(assistant.text || "").split("\n").map((line) => line.match(/^\s*[A-CＡ-Ｃ][.．、:：)]\s*(.+)$/))
+    .filter(Boolean).map((match) => match[1].replace(/\s*(?:——|--|—)\s*.*$/, "").trim()).filter(Boolean).slice(0, 3);
+}
+
+function renderTeacherSuggestions(project, stage) {
+  const source = stage === "answers" ? list(project.workshop?.answer_suggestions) : list(project.workshop?.intake_suggestions);
+  const defaults = stage === "answers" ? ["帮我想想", "跳过这题", "先保存已回答的"] : ["不确定，先跳过", "信息够了，帮我整理"];
+  const items = [...new Set([...source, ...teacherOptionSuggestions(project, stage), ...defaults].map((item) => String(item || "").trim()).filter(Boolean))];
+  return items.map((item) => `<button class="teacher-suggestion" data-teacher-suggestion="${escapeHtml(item)}" type="button">${escapeHtml(item)}</button>`).join("");
+}
+
+function bindTeacherChat(project, stage) {
+  const panel = stage === "answers" ? $("#questionPanel") : $("#questionPanel");
+  panel.querySelectorAll("[data-teacher-suggestion]").forEach((button) => button.addEventListener("click", () => sendTeacherChat(project, stage, button.dataset.teacherSuggestion, button)));
+  const send = () => {
+    const input = panel.querySelector("#teacherChatInput");
+    const value = input?.value.trim();
+    if (value) sendTeacherChat(project, stage, value, panel.querySelector("#teacherChatSend"));
+  };
+  panel.querySelector("#teacherChatSend")?.addEventListener("click", send);
+  panel.querySelector("#teacherChatInput")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); send(); }
+  });
+}
+
+async function sendTeacherChat(project, stage, text, button) {
+  const value = String(text || "").trim();
+  if (!value) return;
+  const requestKey = `${project.id}:${stage}`;
+  if (state.inflightChats.has(requestKey)) return;
+  const workshop = project.workshop || {};
+  const history = stage === "answers" ? list(workshop.answer_transcript) : list(workshop.transcript);
+  const lastUser = [...history].reverse().find((message) => message.role === "user");
+  if (lastUser && String(lastUser.text || "").trim() === value) {
+    await loadProject(project.id);
+    showError("上一条回答可能已经保存，已先刷新项目状态，请确认后再继续。");
+    return;
+  }
+  state.inflightChats.add(requestKey);
+  setActionBusy(button, "正在回复"); clearError();
+  const messages = [...history, { role: "user", text: value }];
+  try {
+    const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/workshop-chat`, { method: "POST", body: JSON.stringify({ stage, messages }) });
+    replaceProject(payload.project); render();
+  } catch (error) { restoreAction(button); showError(error.message); }
+  finally { state.inflightChats.delete(requestKey); }
+}
+
+function teacherChatComposer(stage) {
+  return `<div class="teacher-chat-composer"><textarea id="teacherChatInput" rows="3" placeholder="直接说你的回答，也可以点击下面的建议"></textarea><button class="primary-button" id="teacherChatSend" type="button">发送回答 <span class="button-arrow">↗</span></button></div>`;
+}
+
 function renderDiscovery(project) {
   showOnly("#questionPanel");
-  const questions = list(project.questions);
+  if (project.workshop) {
+    const panel = $("#questionPanel");
+    panel.innerHTML = `<div class="panel-heading"><div><span class="section-kicker">需求澄清 · 老师 Agent</span><h3>把想法聊清楚</h3></div><span class="status-chip is-progress">动态追问</span></div><p class="panel-copy">问题会根据当前覆盖情况继续变化。可以直接回答、点推荐方向，拿不准时让老师帮你想想。</p>${renderTeacherChat(project, "intake")}<div class="teacher-suggestions">${renderTeacherSuggestions(project, "intake")}</div>${teacherChatComposer("intake")}`;
+    bindTeacherChat(project, "intake");
+    return;
+  }
   const round = Math.max(1, Number(project.discovery_round ?? project.round ?? 0) + 1);
-  $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">需求澄清 · 第 ${round} 轮${project.version > 1 ? ` · V${project.version}` : ""}</span><h3>先把需求说准</h3></div><span class="status-chip is-progress">${escapeHtml(project.idea.slice(0, 22))}</span></div><p class="panel-copy">这一轮只问会改变产品方向的问题。直接选择最接近的一项，推荐项可以直接采用。需要时可以继续补充，不会把固定题数当成完成标准。${project.change_request ? `本次新增：${escapeHtml(project.change_request)}` : ""}</p><div class="question-list">${questions.map((question) => renderQuestionCard(question, project.answers?.[question.id] || "")).join("")}</div><div class="panel-actions"><button class="primary-button" id="answerButton" type="button"><span>记录回答，继续判断</span><span class="button-arrow">↗</span></button></div>`;
-  $("#questionPanel").querySelectorAll("[data-question-option]").forEach((button) => button.addEventListener("click", () => selectQuestionOption(button.closest("[data-question-card]"), button.dataset.optionValue)));
-  $("#questionPanel").querySelectorAll("[data-question-recommend]").forEach((button) => button.addEventListener("click", () => selectQuestionOption(button.closest("[data-question-card]"), button.dataset.recommendValue)));
-  $("#answerButton").addEventListener("click", submitAnswers);
+  $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">需求澄清 · 第 ${round} 轮${project.version > 1 ? ` · V${project.version}` : ""}</span><h3>进入老师 Agent 对话</h3></div><span class="status-chip is-progress">等待聊天入口</span></div><p class="panel-copy">正式需求澄清使用老师源码的动态对话。请先点击“继续需求澄清”，再由 Agent 按需求覆盖情况追问。</p><div class="panel-actions"><button class="primary-button" id="continueDiscoveryButton" type="button">继续需求澄清</button></div>`;
+  const continueButton = $("#continueDiscoveryButton");
+  continueButton.addEventListener("click", () => workshopAction(project, "workshop-resume", continueButton, "正在进入老师对话"));
 }
 
 function renderRequirements(project) {
   showOnly("#questionPanel");
   const intent = projectIntent(project); const discovery = projectDiscovery(project);
+  if (project.workshop) {
+    $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · 需求确认</span><h3>${escapeHtml(project.workshop.name || "确认需求草稿")}</h3></div><span class="status-chip is-confirm">等你确认</span></div><div class="question-card"><label for="workshopDraft">核对需求草稿，有需要可以直接修改</label><textarea id="workshopDraft" class="workshop-draft" rows="14" maxlength="26000">${escapeHtml(project.workshop.draft)}</textarea></div><div class="panel-actions"><button class="primary-button" id="confirmIntentButton" type="button">确认需求，推导方案并审稿</button></div>`;
+    $("#confirmIntentButton").addEventListener("click", () => confirmIntent(project));
+    return;
+  }
   const supplement = project.requirement_supplement?.status === "needs_input";
   const supplementBox = supplement ? `<div class="supplement-box"><div class="section-kicker">补充信息</div><h4>补充一条会改变判断的信息</h4><p>可以补充事实、约束或必须纳入的用户场景；提交后仍停留在需求确认。</p><textarea id="supplementInput" aria-label="补充需求信息" placeholder="例如：已有 5 次访谈都提到需要导入原始记录"></textarea><div class="panel-actions"><button class="secondary-button" id="skipSupplementButton" type="button">无需补充</button><button class="primary-button" id="submitSupplementButton" type="button"><span>提交补充</span><span class="button-arrow">↗</span></button></div></div>` : "";
   $("#questionPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 需求确认</span><h3>确认需求判断，生成 PRD</h3></div><span class="status-chip is-confirm">等你确认</span></div><p class="panel-copy">这一步会把用户、问题、证据、目标和风险整理成 PRD 的需求判断。确认后继续补齐方案，完成后交给模块二进行后端开发。</p><div class="plan-grid"><div class="plan-block"><h4>用户与目标</h4><p>${escapeHtml(intent.target_user || discovery.target_user || "待确认")}<br />${escapeHtml(intent.goal || discovery.problem || "待确认")}</p></div><div class="plan-block"><h4>证据与假设</h4><ul>${listHtml(discovery.evidence || discovery.facts, ["当前暂无外部证据，先按假设记录"])}</ul></div><div class="plan-block"><h4>核心结果</h4><p>${escapeHtml(intent.core_loop || discovery.desired_outcome || "待确认")}</p></div><div class="plan-block"><h4>红灯与待验证</h4><ul>${listHtml(discovery.red_flags || discovery.open_questions, ["暂无红灯；真实用户验证仍待完成"])}</ul></div></div>${supplementBox}<div class="panel-actions"><button class="secondary-button" id="continueDiscoveryButton" type="button">我还要补充</button><button class="primary-button" id="confirmIntentButton" type="button"><span>确认需求，继续整理 PRD</span><span class="button-arrow">↗</span></button></div>`;
@@ -506,28 +653,94 @@ function renderPlanConfirmation(project) {
     });
     return;
   }
+  if (project.workshop) {
+    renderWorkshopPlan(project, plan);
+    return;
+  }
   const configured = state.model?.configured;
   const modelHint = configured ? "已配置真实模型；可主动重生成方案" : "真实模型尚未配置，当前只能继续使用本地结构化方案";
   const modelButton = configured
     ? `<button class="secondary-button" id="realPlanButton" type="button">使用真实模型重生成</button>`
     : `<button class="secondary-button" id="realPlanButton" type="button" disabled title="当前未配置真实模型">真实模型未配置</button>`;
-  $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 方案</span><h3>${escapeHtml(plan.title || project.idea)}</h3></div><span class="status-chip is-confirm">${escapeHtml(sourceLabel(project))}</span></div><p class="panel-copy">这份 PRD 已经包含产品定位、核心闭环、MVP 范围和验收标准。确认后进入模块二，根据这份 PRD 生成后端开发任务。</p><div class="plan-grid"><div class="plan-block"><h4>产品定位</h4><p>${escapeHtml(plan.summary || intent.goal || "待生成")}</p></div><div class="plan-block"><h4>核心闭环</h4><p>${escapeHtml(intent.core_loop || "待补充")}</p></div><div class="plan-block"><h4>MVP 范围</h4><ul>${listHtml(plan.mvp_features || plan.scope)}</ul></div><div class="plan-block"><h4>验收标准</h4><ul>${listHtml(intent.acceptance)}</ul></div></div><div class="panel-actions">${modelButton}<button class="secondary-button" id="modifyPlanButton" type="button">方案需要修改</button><button class="primary-button" id="confirmPlanButton" type="button"><span>确认 PRD，开始后端开发</span><span class="button-arrow">↗</span></button></div><div class="stage-note">${modelHint}</div>`;
+  const reviewScore = Number(plan.review_score ?? 84);
+  const reviewOk = plan.review_ok !== false && reviewScore >= 80;
+  const reviewIssues = list(plan.review_issues);
+  const reviewPanel = `<div class="requirement-review ${reviewOk ? "is-passed" : ""}"><div class="review-summary"><strong>方案审稿 ${reviewOk ? "通过" : "未通过"}</strong><span>${reviewScore} 分</span></div><p>${escapeHtml(plan.review_summary || "方案需要完成结构化审稿")}</p>${reviewIssues.length ? `<ul>${reviewIssues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("")}</ul>` : ""}</div>`;
+  const confirmButton = reviewOk
+    ? '<button class="primary-button" id="confirmPlanButton" type="button"><span>确认 PRD，开始后端开发</span><span class="button-arrow">↗</span></button>'
+    : '<button class="secondary-button" id="confirmPlanButton" type="button" disabled title="方案审稿需要达到 80 分">方案审稿未达到 80 分</button>';
+  $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 方案</span><h3>${escapeHtml(plan.title || project.idea)}</h3></div><span class="status-chip ${reviewOk ? "is-done" : "is-confirm"}">${escapeHtml(sourceLabel(project))}</span></div><p class="panel-copy">这份 PRD 已经包含产品定位、核心闭环、MVP 范围和验收标准。先完成稳定审稿，再确认方案进入模块二。</p><div class="plan-grid"><div class="plan-block"><h4>产品定位</h4><p>${escapeHtml(plan.summary || intent.goal || "待生成")}</p></div><div class="plan-block"><h4>核心闭环</h4><p>${escapeHtml(intent.core_loop || "待补充")}</p></div><div class="plan-block"><h4>MVP 范围</h4><ul>${listHtml(plan.mvp_features || plan.scope)}</ul></div><div class="plan-block"><h4>验收标准</h4><ul>${listHtml(intent.acceptance)}</ul></div></div>${reviewPanel}<div class="panel-actions">${modelButton}<button class="secondary-button" id="modifyPlanButton" type="button">方案需要修改</button>${confirmButton}</div><div class="stage-note">${modelHint}</div>`;
   $("#confirmPlanButton").addEventListener("click", () => confirmPlan(project, true));
   $("#modifyPlanButton").addEventListener("click", () => confirmPlan(project, false));
   $("#realPlanButton").addEventListener("click", generateRealPlan);
 }
 
+function renderWorkshopPlan(project, plan) {
+  const workshop = project.workshop || {};
+  const questions = list(workshop.answer_questions).length ? list(workshop.answer_questions) : list(plan.open_questions);
+  if (questions.length || list(workshop.answer_transcript).length || list(workshop.answer_draft).length) {
+    renderWorkshopAnswers(project, plan);
+    return;
+  }
+  showOnly("#planPanel");
+  const data = plan.teacher_plan || {};
+  const facts = Object.entries(data.facts || {}).map(([key, fact]) => {
+    const label = { goal: "目标", users: "用户", core_loop: "核心闭环", deliverable: "交付物", boundaries: "边界", constraints: "约束" }[key] || key;
+    return `<li><strong>${escapeHtml(label)}</strong> · ${escapeHtml(fact.value || "待确认")} ${fact.status === "待确认" ? "<small>待确认</small>" : ""}</li>`;
+  }).join("");
+  const pendingCount = questions.length;
+  const ready = plan.review_ok === true && plan.review_score >= 80 && !pendingCount;
+  const reviewBlock = `<div class="plan-block"><h4>独立审稿</h4><strong>${plan.review_ok ? "审稿通过" : "审稿未通过"} · ${Number(plan.review_score || 0)} 分</strong><p>${escapeHtml(plan.review_summary || "")}</p>${plan.review_issues?.length ? `<ul>${listHtml(plan.review_issues)}</ul>` : ""}</div>`;
+  const summary = `<div class="plan-grid"><div class="plan-block"><h4>产品定位</h4><p>${escapeHtml(plan.summary || "")}</p></div><div class="plan-block"><h4>需求事实</h4><ul>${facts || "<li>待生成</li>"}</ul></div><div class="plan-block"><h4>待确认问题</h4><p>${pendingCount ? `还有 ${pendingCount} 个待答问题` : "当前没有待确认问题"}</p></div>${reviewBlock}</div>`;
+  const design = data.design || {};
+  const details = `<details class="delivery-details"><summary>完整方案<span>五要素、选型、架构与测试</span></summary><div class="plan-grid"><div class="plan-block"><h4>领域建模</h4><ul>${Object.values(data.elements || {}).map((items) => listHtml(items, [])).join("")}</ul></div><div class="plan-block"><h4>组件选型</h4><ul>${listHtml(list(data.components).map((item) => `${item.name} · ${item.decision} · ${item.reason}`), [])}</ul></div><div class="plan-block"><h4>技术与部署</h4><p>${escapeHtml(design.tech_stack_and_deployment || "")}</p><ul>${listHtml(design.security_and_degradation, [])}</ul></div><div class="plan-block"><h4>测试设计</h4><ul>${listHtml(design.testing, [])}</ul></div></div></details>`;
+  const confirm = ready ? '<button class="primary-button" id="confirmPlanButton" type="button">确认方案，交接进入后端开发</button>' : '<button class="secondary-button" id="confirmPlanButton" type="button" disabled>先完成待确认项和 80 分审稿门禁</button>';
+  $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 方案</span><h3>${escapeHtml(plan.title || project.idea)}</h3></div><span class="status-chip ${ready ? "is-done" : "is-confirm"}">${ready ? "等你确认" : "待复核"}</span></div><p class="panel-copy">方案会先经过老师的待确认问题和统一审稿，达到 80 分且没有高严重度问题后才能进入后端开发。</p>${summary}${details}<div class="panel-actions"><button class="secondary-button" id="modifyPlanButton" type="button">方案需要修改</button>${confirm}</div>`;
+  $("#confirmPlanButton")?.addEventListener("click", () => confirmPlan(project, true));
+  $("#modifyPlanButton")?.addEventListener("click", () => confirmPlan(project, false));
+}
+
+function renderWorkshopAnswers(project, plan) {
+  showOnly("#questionPanel");
+  const workshop = project.workshop || {};
+  const questions = list(workshop.answer_questions).length ? list(workshop.answer_questions) : list(plan.open_questions);
+  const draft = list(workshop.answer_draft);
+  const intro = !list(workshop.answer_transcript).length && questions.length ? `<div class="teacher-chat-message is-assistant"><span class="teacher-chat-role">Agent 工坊</span><p>${escapeHtml(workshop.answer_intro || `方案里有 ${questions.length} 个还没想清楚的问题，我们一题一题过。想好的直接回答，拿不准可以点“帮我想想”。`)}</p></div>` : "";
+  const draftCard = draft.length ? `<div class="teacher-chat-draft"><strong>这些回答准备写回需求文档</strong>${draft.map((item) => `<p><b>${escapeHtml(item.question || "")}</b><br />${escapeHtml(item.answer || "")}</p>`).join("")}<button class="primary-button" id="saveWorkshopAnswersButton" type="button">保存回答并重新推导</button></div>` : "";
+  const countLabel = questions.length ? `${questions.length} 条` : "动态";
+  const panel = $("#questionPanel");
+  panel.innerHTML = `<div class="panel-heading"><div><span class="section-kicker">方案待确认问题 · ${countLabel}</span><h3>继续和老师对话</h3></div><span class="status-chip is-confirm">统一评分前必须答完</span></div><p class="panel-copy">老师会按原始方案问题逐题推进。回答、选项、帮我想想、跳过和先保存都在同一段聊天里完成。</p>${renderTeacherChat(project, "answers", intro)}<div class="teacher-suggestions">${renderTeacherSuggestions(project, "answers")}</div>${draftCard}${teacherChatComposer("answers")}<div class="panel-actions"><button class="secondary-button" id="backToPlanButton" type="button">返回方案概览</button></div>`;
+  bindTeacherChat(project, "answers");
+  panel.querySelector("#backToPlanButton")?.addEventListener("click", () => renderWorkshopPlan(project, plan));
+  panel.querySelector("#saveWorkshopAnswersButton")?.addEventListener("click", async (event) => {
+    setActionBusy(event.currentTarget, "正在重新推导");
+    try {
+      const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/workshop-chat/save`, { method: "POST", body: JSON.stringify({ answers: draft }) });
+      replaceProject(payload.project); render();
+    } catch (error) { restoreAction(event.currentTarget); showError(error.message); }
+  });
+}
+
 function renderBackend(project, verified) {
   showOnly("#previewPanel");
   const backend = projectBackend(project); const tasks = list(project.tasks);
+  if (backend.status === "prd_health_check" || backend.status === "stage_task_ready") {
+    const id = encodeURIComponent(project.id);
+    const title = backend.status === "stage_task_ready" ? "PRD 已交接，准备开发" : "PRD 体检";
+    const copy = backend.status === "stage_task_ready" ? "方案确认已完成。下一步只调用一次真实 /build，读取老师 idea-to-launch-kit 的本阶段任务。" : "已交接这次确认的 PRD 和方案。Idea to Launch 已建立阶段 0 任务。";
+    $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块二 · 阶段 0</span><h3>${title}</h3></div><span class="status-chip is-progress">等待开发准备</span></div><p class="panel-copy">${copy}</p><div class="plan-grid"><div class="plan-block"><h4>已交接</h4><ul>${listHtml(backend.checks)}</ul></div><div class="plan-block"><h4>开发阶段</h4><ul>${listHtml(backend.acceptance)}</ul></div></div><div class="panel-actions"><a class="secondary-button" href="/api/v1/projects/${id}/handoff">下载交接包</a><button class="primary-button" id="startBackendButton" type="button"><span>开始后端开发准备</span><span class="button-arrow">↗</span></button><button class="secondary-button" id="refreshBuildButton" type="button">刷新状态</button></div>`;
+    $("#startBackendButton").addEventListener("click", () => startBackendBuild(project));
+    $("#refreshBuildButton").addEventListener("click", () => loadProject(project.id));
+    return;
+  }
   const checks = backend.verification || backend.tests || backend.checks || [];
   const stage = previewStageView(project);
   const previewReady = stage.previewReady;
   const previewLabel = stage.previewLabel;
   const previewState = stage.previewState;
-  const preview = project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(previewReady ? previewLabel : project.plan.preview_label || "产品示例")}</span><span>${escapeHtml(previewReady ? previewState : verified ? "等你确认" : "后端开发中")}</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || project.answers?.core_action || (online ? "查看示例结果" : "打开运行时预览"))} ↗</span></div></div>` : "";
-  const title = previewReady ? stage.title : verified ? "后端已生成，等你验收" : "正在生成后端与测试";
-  const headingKicker = previewReady ? "模块二 · 产品预览" : verified ? "模块二 · 后端验收" : "模块二 · 后端开发";
+  const preview = previewReady && project.plan ? `<div class="preview-shell"><div class="preview-top"><span>${escapeHtml(previewReady ? previewLabel : project.plan.preview_label || "产品示例")}</span><span>${escapeHtml(previewReady ? previewState : verified ? "等你确认" : "后端开发中")}</span></div><div class="preview-body"><h4>${escapeHtml(project.plan.title || project.idea)}</h4><p>${escapeHtml(project.plan.summary || "方案正在生成")}</p><span class="preview-cta">${escapeHtml(project.answers?.desired_outcome || project.answers?.core_action || (online ? "查看示例结果" : "打开运行时预览"))} ↗</span></div></div>` : "";
+  const title = previewReady ? stage.title : verified ? "后端已生成，等你验收" : backend.status === "awaiting_external_coding" ? "等待外部编码工具完成" : "等待后端开发准备";
+  const headingKicker = previewReady ? "模块二 · 产品预览" : verified ? "模块二 · 后端验收" : backend.status === "awaiting_external_coding" ? "模块二 · 开发等待" : "模块二 · 后端开发";
   const chipClass = { "preview-verified": "is-preview-verified", "preview-pending": "is-preview-pending", "example-viewed": "is-confirm", "example-pending": "is-progress" }[stage.chipKind] || "is-progress";
   const headingChip = previewReady
     ? `<span class="status-chip ${chipClass}">${escapeHtml(stage.chip)}</span>`
@@ -544,8 +757,8 @@ function renderBackend(project, verified) {
     ? (stage.startEnabled ? `${openPreviewButton}${startTrialButton}` : `${startTrialButton}${openPreviewButton}`)
     : verified
       ? '<button class="primary-button" id="acceptanceButton" type="button"><span>验收通过，进入产品预览</span><span class="button-arrow">↗</span></button>'
-      : '<button class="primary-button" id="refreshBuildButton" type="button"><span>刷新开发状态</span></button>';
-  const panelCopy = previewReady ? stage.copy : "这里展示 API、数据模型、测试和运行时结果。验收通过只代表进入产品预览，不代表预览已经验证。";
+      : `<button class="primary-button" id="refreshBuildButton" type="button"><span>${backend.status === "awaiting_external_coding" ? "刷新外部开发状态" : "刷新开发状态"}</span></button>`;
+  const panelCopy = previewReady ? stage.copy : backend.status === "awaiting_external_coding" ? "老师工具包已经生成当前阶段任务。请由外部编码工具完成任务并运行原始 kit.sh 自检，工作台不会把等待态画成开发完成。" : "这里展示 API、数据模型、测试和运行时结果。验收通过只代表进入产品预览，不代表预览已经验证。";
   const newRequirementForm = previewReady && project.new_requirement_draft ? `<div class="iteration-box"><div class="section-kicker">新版本 · V${Number(project.version || 1) + 1}</div><h4>这次想新增或改变什么？</h4><p>这会创建新版本并重新判断受影响的需求，不会改写已经验收的版本。</p><textarea id="newRequirementInput" aria-label="下一版需求" placeholder="例如：新增一个让用户导入访谈记录的入口"></textarea><div class="panel-actions"><button class="primary-button" id="createVersionButton" type="button"><span>开启下一版需求发现</span><span class="button-arrow">↗</span></button></div></div>` : "";
   $("#previewPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">${headingKicker}</span><h3>${title}</h3></div>${headingChip}</div><p class="panel-copy">${escapeHtml(panelCopy)}</p>${preview}<details class="delivery-details" ${previewReady ? "" : "open"}><summary>交付详情<span>接口、任务与检查</span></summary><div class="plan-grid"><div class="plan-block"><h4>API 与数据</h4><ul>${listHtml(backend.api_contract || backend.api || ["项目状态接口", "需求与方案确认接口", "预览与验收接口"])}</ul></div><div class="plan-block"><h4>开发任务</h4><ul>${tasks.length ? tasks.map((task) => `<li>${escapeHtml(task.message || task.kind)} · ${escapeHtml(task.status || "进行中")}</li>`).join("") : listHtml(backend.tasks, ["后端任务已创建，等待状态回写"])}</ul></div><div class="plan-block"><h4>测试与恢复</h4><ul>${listHtml(checks, ["结构化 API 测试", "重启恢复待验证", "示例入口已生成"])}</ul></div><div class="plan-block"><h4>完成条件</h4><ul>${listHtml(backend.acceptance || projectIntent(project).acceptance, ["用户能打开示例", "测试结果可查看", "项目状态可恢复"])}</ul></div></div></details>${newRequirementForm}<div class="panel-actions">${action}</div>`;
   if (previewReady) {
@@ -590,8 +803,47 @@ async function loadModelStatus() {
   if (online) { state.model = pickModelStatus({ configured: false, required: false, can_build: true, model: "offline-mock" }); state.modelUnavailable = false; renderStartGate(); renderWelcomeGuide(); return; }
   try { state.model = pickModelStatus(await api("/api/v1/model/status")); state.modelUnavailable = false; }
   catch (_) { state.model = pickModelStatus({ configured: false, required: true, can_build: false }); state.modelUnavailable = true; }
-  renderStartGate(); renderWelcomeGuide();
+  render();
 }
+
+const FALLBACK_MODEL_PROVIDERS = [
+  { key: "deepseek", name: "DeepSeek（推荐）", model: "deepseek-chat", base_url: "https://api.deepseek.com/v1", key_page: "https://platform.deepseek.com" },
+  { key: "glm", name: "智谱 GLM", model: "glm-4.5", base_url: "https://open.bigmodel.cn/api/paas/v4", key_page: "https://open.bigmodel.cn" },
+  { key: "kimi", name: "Kimi 月之暗面", model: "kimi-k2-0711-preview", base_url: "https://api.moonshot.cn/v1", key_page: "https://platform.moonshot.cn" },
+  { key: "anthropic", name: "Anthropic 官方", model: "claude-sonnet-4-5", base_url: "https://api.anthropic.com/v1", key_page: "https://console.anthropic.com" },
+];
+
+function modelProvider(key) {
+  const providers = state.model?.providers?.length ? state.model.providers : FALLBACK_MODEL_PROVIDERS;
+  return providers.find((provider) => provider.key === key) || providers[0];
+}
+
+function renderModelSettings(selectedKey = state.model?.provider || "deepseek") {
+  let dialog = $("#settingsDialog");
+  if (!dialog) {
+    document.body.insertAdjacentHTML("beforeend", '<div id="settingsDialog" class="settings-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="settingsDialogTitle"></div>');
+    dialog = $("#settingsDialog");
+  }
+  const providers = state.model?.providers?.length ? state.model.providers : FALLBACK_MODEL_PROVIDERS;
+  const provider = modelProvider(selectedKey);
+  const options = providers.map((item) => `<option value="${escapeHtml(item.key)}" ${item.key === provider.key ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
+  const fileMode = location.protocol === "file:" || online;
+  const status = fileMode ? "当前是离线示例，配置需要打开本地 API" : state.model?.configured ? `已配置 ${escapeHtml(state.model.model || provider.model)}${state.model.key_masked ? ` · ${escapeHtml(state.model.key_masked)}` : ""}` : "尚未配置真实模型";
+  const guide = providers.slice(0, 4).map((item) => `<li><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.model)}</span></li>`).join("");
+  const keyLink = provider.key_page ? `<a class="settings-link" href="${escapeHtml(provider.key_page)}" target="_blank" rel="noreferrer">打开 ${escapeHtml(provider.name)} Key 页面 ↗</a>` : "";
+  dialog.innerHTML = `<div class="settings-card"><div class="settings-card-head"><div><span class="section-kicker">本地 API</span><h3 id="settingsDialogTitle">模型设置</h3></div><button id="closeSettingsButton" class="icon-button" type="button" aria-label="关闭模型设置">×</button></div><p class="settings-copy">模型配置只从后端环境读取，不会通过页面写入配置文件或浏览器 localStorage。</p><div class="settings-guide"><strong>推荐模型</strong><ul>${guide}</ul><p>优先使用 DeepSeek。当前真实流程会通过后端调用模型。</p>${keyLink}</div><div class="settings-status ${state.model?.configured && !fileMode ? "is-ready" : ""}"><span class="status-dot"></span>${status}</div><label class="settings-field"><span>服务商</span><select id="settingsProvider">${options}</select></label><label class="settings-field"><span>模型名称</span><input id="settingsModel" value="${escapeHtml(state.model?.model || provider.model || "")}" autocomplete="off" readonly /></label><label class="settings-field"><span>API Key</span><input id="settingsApiKey" type="password" value="${escapeHtml(state.model?.key_masked || "")}" placeholder="仅显示状态，不读取密钥" autocomplete="off" readonly /></label><label class="settings-field"><span>接口地址</span><input id="settingsBaseUrl" value="${escapeHtml(state.model?.base_url || provider.base_url || "")}" autocomplete="off" readonly /></label><div class="settings-actions"><button id="cancelSettingsButton" class="secondary-button" type="button">关闭</button><button id="saveSettingsButton" class="primary-button" type="button" disabled><span>由后端环境管理</span></button></div><p id="settingsMessage" class="settings-message" role="status"></p></div>`;
+  dialog.classList.remove("hidden");
+  $("#closeSettingsButton")?.addEventListener("click", () => dialog.classList.add("hidden"));
+  $("#cancelSettingsButton")?.addEventListener("click", () => dialog.classList.add("hidden"));
+  $("#settingsProvider")?.addEventListener("change", () => renderModelSettings($("#settingsProvider").value));
+  $("#saveSettingsButton")?.addEventListener("click", saveModelSettings);
+}
+
+function saveModelSettings() {
+  const message = $("#settingsMessage");
+  if (message) message.textContent = "配置由后端环境管理。修改 backend/.env 后重启本地服务。";
+}
+
 async function loadProjects() {
   try {
     if (online) { loadSaved(); return; }
@@ -616,7 +868,13 @@ async function createProject(event) {
       const project = { id: `p_${Date.now()}`, idea, version: 1, status: "idea", discovery_round: 0, questions: mockQuestions(idea, 0), answers: {}, events: [], created_at: now(), updated_at: now() };
       transition(project, "needs_discovery", { pending: project.questions.map((question) => question.id) });
       state.current = project; state.projects = [project, ...state.projects.filter((item) => item.id !== project.id)]; persist();
-    } else { const payload = await api("/api/v1/projects", { method: "POST", body: JSON.stringify({ idea }) }); state.current = payload.project; localStorage.setItem("ai-workbench-project", state.current.id); await loadProjects(); }
+    } else {
+      const payload = await api("/api/v1/projects", { method: "POST", body: JSON.stringify({ idea }) });
+      const workshop = await api(`/api/v1/projects/${encodeURIComponent(payload.project.id)}/workshop-resume`, { method: "POST" });
+      replaceProject(workshop.project);
+      localStorage.setItem("ai-workbench-project", workshop.project.id);
+      await loadProjects();
+    }
     $("#idea").value = ""; state.creating = false; render();
   } catch (error) { showError(error.message); if (error.status === 503) await loadModelStatus(); }
   button.disabled = false;
@@ -624,13 +882,13 @@ async function createProject(event) {
 function currentAnswers() { return state.current?.answers || {}; }
 async function submitAnswers() {
   const answers = {};
-  document.querySelectorAll("[data-question-id]").forEach((input) => {
+  document.querySelectorAll("#questionPanel:not(.hidden) [data-question-id], #planPanel:not(.hidden) [data-question-id]").forEach((input) => {
     const custom = input.closest("[data-question-card]")?.querySelector("[data-question-custom]")?.value.trim();
     const selected = input.value.trim();
     answers[input.dataset.questionId] = custom ? (selected ? `${selected}；补充：${custom}` : custom) : selected;
   });
   if (Object.values(answers).some((answer) => !answer)) { showError("还有一个关键问题没有回答"); return; }
-  const button = $("#answerButton"); button.disabled = true; clearError();
+  const button = $("#answerButton"); setActionBusy(button, "正在判断需求"); clearError();
   try {
     if (online) {
       Object.assign(state.current.answers, answers);
@@ -644,16 +902,20 @@ async function submitAnswers() {
     }
     else { const payload = await api(`/api/v1/projects/${encodeURIComponent(state.current.id)}/answers`, { method: "POST", body: JSON.stringify({ answers }) }); replaceProject(payload.project); }
     render();
-  } catch (error) { showError(error.message); button.disabled = false; }
+  } catch (error) { restoreAction(button); showError(error.message); }
 }
 async function continueDiscovery(project) {
+  const button = $("#continueDiscoveryButton");
+  setActionBusy(button, "正在准备下一轮");
   if (online) { project.discovery_round = Number(project.discovery_round ?? project.round ?? 0) + 1; project.questions = mockQuestions(project.idea, project.discovery_round, project.answers || {}); transition(project, "needs_discovery", { pending: project.questions.map((question) => question.id) }); persist(); render(); return; }
   try { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/confirm-intent`, { method: "POST", body: JSON.stringify({ confirmed: false, note: "需要补充或修正需求" }) }); replaceProject(payload.project); render(); }
-  catch (error) { showError(error.message); }
+  catch (error) { restoreAction(button); showError(error.message); }
 }
 function submitSupplement(project) {
   const value = $("#supplementInput")?.value.trim();
   if (!value) { showError("先写一条需要纳入判断的补充"); return; }
+  const button = $("#submitSupplementButton");
+  setActionBusy(button, "正在保存补充");
   if (online) {
     project.answers = project.answers || {};
     project.answers.additional_context = project.answers.additional_context ? `${project.answers.additional_context}\n${value}` : value;
@@ -664,28 +926,55 @@ function submitSupplement(project) {
     project.events.push({ id: `evt_${Date.now()}_${project.events.length}`, from: "needs_intent_confirmation", to: "needs_intent_confirmation", actor: "user", input_version: project.version || 1, output_version: project.version || 1, evidence: [value], pending: [], at: now() });
     persist(); render(); return;
   }
-  api(`/api/v1/projects/${encodeURIComponent(project.id)}/supplement`, { method: "POST", body: JSON.stringify({ text: value }) }).then((payload) => { replaceProject(payload.project); render(); }).catch((error) => showError(error.message));
+  api(`/api/v1/projects/${encodeURIComponent(project.id)}/supplement`, { method: "POST", body: JSON.stringify({ text: value }) }).then((payload) => { replaceProject(payload.project); render(); }).catch((error) => { restoreAction(button); showError(error.message); });
 }
 async function confirmIntent(project) {
   clearError();
+  const button = $("#confirmIntentButton");
+  setActionBusy(button, "正在整理 PRD");
   try {
     if (online) { project.plan = mockPlan(project); transition(project, "needs_plan_confirmation", { pending: project.plan.open_questions || [] }); persist(); }
-    else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/confirm-intent`, { method: "POST", body: JSON.stringify({ confirmed: true }) }); replaceProject(payload.project); }
+    else {
+      const input = $("#workshopDraft");
+      const body = input && project.workshop ? { confirmed: true, draft: input.value } : { confirmed: true };
+      const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/confirm-intent`, { method: "POST", body: JSON.stringify(body) });
+      replaceProject(payload.project);
+    }
     render();
-  } catch (error) { showError(error.message); }
+  } catch (error) { restoreAction(button); showError(error.message); }
 }
 async function generateRealPlan() {
   const button = $("#realPlanButton"); button.disabled = true; clearError();
   try { const payload = online ? null : await api(`/api/v1/projects/${encodeURIComponent(state.current.id)}/real-plan`, { method: "POST", body: JSON.stringify({ answers: currentAnswers() }) }); if (payload) replaceProject(payload.project); render(); }
   catch (error) { showError(`${error.message}。真实模型失败不会覆盖当前方案。`); button.disabled = false; }
 }
+async function startBackendBuild(project) {
+  const button = $("#startBackendButton");
+  setActionBusy(button, "正在准备开发"); clearError();
+  try {
+    const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/build`, { method: "POST", body: JSON.stringify({ execution_mode: "real" }) });
+    replaceProject(payload.project); render();
+  } catch (error) {
+    restoreAction(button); showError(error.message); render();
+  }
+}
+
 async function confirmPlan(project, confirmed = true) {
   clearError();
+  const button = $("#confirmPlanButton");
+  setActionBusy(button, confirmed ? "正在进入后端开发" : "正在保存修改");
   try {
     if (online) { if (confirmed) { project.backend = mockBackend(project); transition(project, "backend_verified", { pending: project.backend.tests || [] }); } else { project.plan_revision = { status: "needs_input", prompt: "方案需要调整哪一处？", requested_at: now() }; transition(project, "needs_plan_confirmation", { pending: ["plan_revision"] }); } persist(); }
-    else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/confirm-plan`, { method: "POST", body: JSON.stringify({ confirmed }) }); replaceProject(payload.project); }
+    else {
+      const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/confirm-plan`, { method: "POST", body: JSON.stringify({ confirmed }) });
+      replaceProject(payload.project);
+      if (confirmed && payload.project?.backend?.status === "stage_task_ready") {
+        await startBackendBuild(payload.project);
+        return;
+      }
+    }
     render();
-  } catch (error) { showError(error.message); }
+  } catch (error) { restoreAction(button); showError(error.message); }
 }
 async function createNextVersion(project) {
   if (!canCreateNextVersion(project)) { showError("请先记录一次试用结果，再开启下一版"); render(); return; }
@@ -708,11 +997,13 @@ async function createNextVersion(project) {
 }
 async function acceptBuild(project) {
   clearError();
+  const button = $("#acceptanceButton");
+  setActionBusy(button, "正在保存验收");
   try {
     if (online) { transition(project, "preview_ready", { pending: [] }); persist(); }
     else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/acceptance`, { method: "POST", body: JSON.stringify({ passed: true }) }); replaceProject(payload.project); }
     render();
-  } catch (error) { showError(error.message); }
+  } catch (error) { restoreAction(button); showError(error.message); }
 }
 
 async function startTrial(project) {
@@ -722,11 +1013,13 @@ async function startTrial(project) {
     return;
   }
   clearError();
+  const button = $("#startTrialButton");
+  setActionBusy(button, "正在进入试用");
   try {
     if (online) { project.trial = { status: "active", outcome: "", feedback: [], started_at: now(), updated_at: now() }; transition(project, "trial", { pending: ["trial_feedback"] }); persist(); }
     else { const payload = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/trial`, { method: "POST", body: JSON.stringify({}) }); replaceProject(payload.project); }
     render();
-  } catch (error) { showError(error.message); }
+  } catch (error) { restoreAction(button); showError(error.message); }
 }
 
 async function submitTrialFeedback(project) {
@@ -743,6 +1036,8 @@ async function submitTrialFeedback(project) {
 
 async function openPreview(project) {
   let previewWindow = null;
+  const button = $("#openPreviewButton");
+  setActionBusy(button, "正在验证预览");
   try {
     if (online) { markMockExampleViewed(project); persist(); render(); return; }
     previewWindow = window.open("about:blank", "_blank");
@@ -752,7 +1047,7 @@ async function openPreview(project) {
       if (previewWindow) previewWindow.location.href = payload.preview.url;
       else window.location.href = payload.preview.url;
     } else if (previewWindow) previewWindow.close();
-  } catch (error) { if (previewWindow) previewWindow.close(); showError(error.message); }
+  } catch (error) { if (previewWindow) previewWindow.close(); restoreAction(button); showError(error.message); }
 }
 
 function mockQuestions(idea, round, answers = {}, changeRequest = "") {
@@ -793,6 +1088,7 @@ async function mockApi() { throw new Error("在线演示不调用本地 API，�
 
 $("#ideaForm").addEventListener("submit", createProject);
 $("#offlineExampleButton").addEventListener("click", () => { window.location.href = `${window.location.pathname}?mode=offline-demo`; });
+$("#settingsButton")?.addEventListener("click", () => renderModelSettings());
 $("#helpButton").addEventListener("click", () => { state.helpOpen = !state.helpOpen; render(); });
 $("#showNewProjectButton").addEventListener("click", () => { state.creating = true; setNavigationOpen(false); render(); $("#idea").focus(); });
 $("#cancelNewProjectButton")?.addEventListener("click", () => { state.creating = false; render(); });

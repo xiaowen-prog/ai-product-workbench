@@ -1,18 +1,22 @@
 # AI 产品工作台本地与公网预览
 
-当前界面是浅色纸张工作台：一个当前任务、一处主操作、一个明确的示例入口。直接打开 dist/index.html 时走浏览器本地 mock；启动 FastAPI 后加 ?mode=local 才会使用本地 JSON 后端。验收后的 `trial` 阶段记录一次 outcome 与文字 feedback，反馈写入后才能开启 V2。
+当前 v29 界面保留浅色纸张工作台视觉。正式本地入口由老师第二个项目的 FastAPI 运行时承载，原有 `/api/v1/tasks`、Job、AgentRun、权限、错误格式和 OpenAPI 契约继续可用。v29 工作台在同一进程里接入老师第一个项目的需求澄清、PRD、方案审稿和交接包。
 
-## 启动本地后端
+## 本地正式入口
 
-uv venv backend/.venv
-uv pip install --python backend/.venv/bin/python -r backend/requirements-dev.txt
-backend/start.sh
+```bash
+uv venv .venv
+uv pip install --python .venv/bin/python -r backend/requirements-dev.txt
+PORT=8770 ./tools/start-local-v29.sh
+```
 
-打开 http://127.0.0.1:8766/?mode=local。此模式默认要求 `backend/.env` 配置 `MODEL_API_KEY`，没有 Key 不能创建真实项目；数据默认写到 `backend/data/workbench.json`，只保存在本机。真实模型 Key 只从 `backend/.env` 或进程环境读取。
+打开 <http://127.0.0.1:8770/>。模型配置通过页面右上角的「模型设置」提交给本机后端，Key 不进入前端代码或浏览器 localStorage。启动脚本会复用本机已有的 DeepSeek 配置。
 
-没有 Key 时可打开 `http://127.0.0.1:8766/?mode=offline-demo` 查看独立离线示例。离线示例使用浏览器 `localStorage`，不会创建本地 API 项目。
+`.local/teacher-engine/` 只保留为历史参考源码。正式融合源码分别保存在 `backend/teacher_source/` 和 `backend/teacher_backend/`，本地启动时只通过 v29 页面进入。
 
-长期静态演示入口：<https://xiaowen-prog.github.io/ai-product-workbench/>。该入口发布同一份 `dist/` v29，默认是浏览器 mock，不代表真实后端或真实模型验证；真实 API 仍使用同源 `?mode=local` 服务。
+## 老师开发项目后端
+
+`backend/teacher_backend/` 保留老师开发项目的 SQLAlchemy 数据模型、任务事件、Todo、工具权限、知识、后台 Job、AgentRun、暂停恢复、真实模型 adapter 和 Swagger/OpenAPI 路由。`backend/app/` 只负责 v29 工作台适配和同源静态入口。用户确认的 PRD 与方案会复制到本地 Idea to Launch 项目的 `projects/<产品>/docs/PRD/`，并生成阶段 0 任务。
 
 ## 目录和 API 边界
 
@@ -22,13 +26,10 @@ backend/start.sh
 
 ## 验证
 
-PYTHONPATH=backend backend/.venv/bin/pytest -q backend/tests
+PYTHONPATH=backend .venv/bin/python -m pytest -q backend/tests
 node --check dist/app.js
 
-未配置 MODEL_API_KEY 时，真实模型按钮会保持禁用；本地结构化方案和 mock 示例仍可完整走通。本地 API 的验收页会生成 `/runtime/{project_id}/` 运行时地址，必须通过页面、健康检查和核心动作验证后才显示为可运行预览。`trial` 反馈只代表本地记录，不代表真实用户试用或质量验收。
+python3 -m compileall -q .local/teacher-engine/blueprint
+bash -n tools/start-local-v29.sh
 
-## 腾讯云公网实例
-
-同一套 FastAPI 同源服务已按部署手册发布到腾讯云 CloudBase Run。公网入口为 <https://ai-product-workbench-api-341888-6-1525683482.sh.run.tcloudbase.com>，服务名为 `ai-product-workbench-api`，环境为 `xhs-title-d1gvrs9jt6d0f7b03`。公网回归已验证健康检查、API Key 门禁、真实模型方案生成、后端搭建、预览验证和运行时核心动作。
-
-公网容器使用 `/tmp/data` 保存 JSON 状态，实例重启后数据可能丢失。运行时产品页使用当前项目的规则引擎执行核心动作，真实模型用于方案生成，不应把规则运行时结果描述成模型实时生成。
+未配置 MODEL_API_KEY 时，真实需求澄清和独立审稿会被后端门禁挡住。老师原有开发接口可从 `/docs` 和 `/openapi.json` 查看。`GET /api/v1/projects/{id}/handoff` 只在方案确认和交接包生成后开放。后端验收、预览验证、试用反馈和 V2 仍保留原项目的门禁。

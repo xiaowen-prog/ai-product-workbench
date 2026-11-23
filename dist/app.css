@@ -220,6 +220,23 @@ textarea:hover, input:hover, select:hover { border-color: var(--border-hover); }
 .question-label { margin-bottom: 11px; color: var(--text); font-size: 15px; font-weight: 550; }
 .question-card input { min-height: 50px; }
 .question-card small { display: block; font-size: 12px; line-height: 1.7; margin-top: 8px; color: var(--text-tertiary); }
+.teacher-chat-thread { display: grid; gap: 12px; margin: 18px 0 4px; }
+.teacher-chat-message { max-width: 88%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-alt); }
+.teacher-chat-message.is-user { margin-left: auto; border-color: var(--border-accent); background: var(--accent-soft); }
+.teacher-chat-role { display: block; margin-bottom: 4px; color: var(--text-tertiary); font: 10px/1.4 var(--font-mono); letter-spacing: .08em; }
+.teacher-chat-message p { margin: 0; white-space: pre-wrap; line-height: 1.7; }
+.teacher-chat-question { padding: 14px 16px 2px; border: 1px solid var(--border-accent); border-radius: 14px; background: var(--surface); }
+.teacher-chat-progress { margin-bottom: 4px; color: var(--accent); font: 11px/1.5 var(--font-mono); }
+.teacher-suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.teacher-suggestion { min-height: 38px; padding: 7px 12px; border: 1px solid var(--border-accent); border-radius: 999px; background: var(--surface); color: var(--text-secondary); font-size: 12px; cursor: pointer; }
+.teacher-suggestion:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.teacher-chat-composer { display: grid; gap: 10px; margin-top: 14px; }
+.teacher-chat-composer textarea { width: 100%; min-height: 84px; resize: vertical; }
+.teacher-chat-composer .primary-button { justify-self: end; }
+.teacher-chat-draft { margin-top: 16px; padding: 15px; border: 1px solid var(--border-warm); border-radius: 12px; background: var(--surface-confirm); }
+.teacher-chat-draft strong { display: block; margin-bottom: 10px; }
+.teacher-chat-draft p { margin: 8px 0; line-height: 1.65; }
+
 .question-options { display: grid; gap: 8px; }
 .question-option { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 64px; padding: 10px 12px; color: var(--text); text-align: left; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; }
 .question-option:hover { border-color: var(--border-hover); background: var(--surface-hover); }
@@ -331,6 +348,39 @@ footer { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; 
   .plan-block h4 { font-size: 14px; }
   footer { padding: 10px 24px 25px; flex-wrap: wrap; }
 }
+
+.requirement-review { margin: 20px 0; padding: 18px 20px; border: 1px solid var(--border-warm); border-radius: 12px; background: var(--surface-confirm); }
+.requirement-review.is-passed { border-color: var(--border-accent); background: var(--accent-soft); }
+.requirement-review .review-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.requirement-review .review-summary strong { color: var(--text); font-size: 17px; }
+.requirement-review .review-summary span { color: var(--accent); font: 650 22px var(--font-mono); }
+.requirement-review p, .requirement-review ul { margin: 10px 0 0; color: var(--text-secondary); font-size: 14px; line-height: 1.75; }
+.requirement-review ul { padding-left: 18px; }
+.settings-dialog { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(20, 27, 47, .38); }
+.settings-dialog.hidden { display: none; }
+.settings-card { width: min(100%, 520px); max-height: min(720px, 92vh); overflow: auto; padding: 24px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: 0 22px 70px rgba(20, 27, 47, .2); }
+.settings-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.settings-card-head h3 { margin: 8px 0 0; font-size: 24px; }
+.settings-copy { margin: 14px 0; color: var(--text-secondary); font-size: 14px; line-height: 1.75; }
+.settings-guide { margin: 16px 0; padding: 14px 15px; border: 1px solid var(--border-accent); border-radius: 10px; background: var(--accent-soft); }
+.settings-guide > strong { color: var(--text); font-size: 13px; }
+.settings-guide ul { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 14px; margin: 10px 0; padding: 0; list-style: none; }
+.settings-guide li { display: grid; gap: 2px; color: var(--text); font-size: 13px; }
+.settings-guide li span, .settings-guide p { color: var(--text-tertiary); font-size: 12px; line-height: 1.55; }
+.settings-guide p { margin: 10px 0; }
+.settings-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.settings-status { display: flex; align-items: center; gap: 8px; margin: 16px 0 20px; padding: 10px 12px; border-radius: 9px; color: var(--text-secondary); background: var(--surface-alt); font-size: 13px; }
+.settings-status.is-ready { color: var(--accent); background: var(--accent-soft); }
+.settings-field { display: grid; gap: 7px; margin-top: 14px; color: var(--text); font-size: 13px; font-weight: 600; }
+.settings-field input, .settings-field select { margin: 0; background: var(--surface-alt); font-weight: 400; }
+.settings-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
+.settings-message { min-height: 20px; margin: 10px 0 0; color: var(--danger); font-size: 13px; line-height: 1.6; }
+@media (max-width: 560px) {
+  .settings-card { padding: 18px; }
+  .settings-guide ul { grid-template-columns: 1fr; }
+  .settings-actions { flex-direction: column-reverse; align-items: stretch; }
+  .settings-actions > button { width: 100%; }
+}
 @media (max-width: 480px) {
   .topbar { min-height: 64px; padding: 8px 16px; }
   .topbar-location { gap: 4px; }
@@ -437,4 +487,13 @@ footer { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; 
 @media (max-width: 480px) {
   .flow-item strong { font-size: 13px; }
   .flow-item small { font-size: 11px; }
+}
+
+.question-card textarea.workshop-draft {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin-top: 8px;
+  resize: vertical;
+  font: inherit;
 }
