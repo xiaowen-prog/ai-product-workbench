@@ -547,7 +547,14 @@ function teacherChatMessages(project, stage) {
 
 function renderTeacherChat(project, stage, extra = "") {
   const messages = teacherChatMessages(project, stage).filter((message) => String(message?.text || "").trim());
-  const transcript = messages.map((message) => `<div class="teacher-chat-message is-${message.role === "user" ? "user" : "assistant"}"><span class="teacher-chat-role">${message.role === "user" ? "你" : "Agent 工坊"}</span><p>${escapeHtml(message.text)}</p></div>`).join("");
+  const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+  const transcript = messages.map((message) => {
+    const isChoiceMessage = message === latestAssistant && teacherOptionItems(project, stage).length > 0;
+    const text = isChoiceMessage
+      ? String(message.text).split("\n").filter((line) => !/^\s*[A-CＡ-Ｃ][.．、:：)]\s+/.test(line)).join("\n").trim()
+      : message.text;
+    return `<div class="teacher-chat-message is-${message.role === "user" ? "user" : "assistant"}"><span class="teacher-chat-role">${message.role === "user" ? "你" : "Agent 工坊"}</span><p>${escapeHtml(text)}</p></div>`;
+  }).join("");
   return `<div class="teacher-chat-thread">${transcript}${extra}</div>`;
 }
 
@@ -645,18 +652,19 @@ function renderPlanProgress(project, progress = {}) {
 function startPlanProgress(project) {
   let stopped = false;
   let timer = null;
+  const token = (state.planProgressToken = Number(state.planProgressToken || 0) + 1);
   const poll = async () => {
     if (stopped) return;
     try {
       const progress = await api(`/api/v1/projects/${encodeURIComponent(project.id)}/plan-progress`);
-      if (!stopped) renderPlanProgress(project, progress);
+      if (!stopped && state.planProgressToken === token) renderPlanProgress(project, progress);
     } catch (_) {
       // The confirm request remains the authoritative result. A temporary progress read failure should not stop it.
     }
     if (!stopped) timer = window.setTimeout(poll, 1200);
   };
   poll();
-  return () => { stopped = true; if (timer) window.clearTimeout(timer); };
+  return () => { stopped = true; if (timer) window.clearTimeout(timer); if (state.planProgressToken === token) state.planProgressToken += 1; };
 }
 
 function teacherIntakeRound(project) {
@@ -752,8 +760,9 @@ function renderWorkshopPlan(project, plan) {
   const summary = `<div class="plan-grid"><div class="plan-block"><h4>产品定位</h4><p>${escapeHtml(plan.summary || "")}</p></div><div class="plan-block"><h4>需求事实</h4><ul>${facts || "<li>待生成</li>"}</ul></div><div class="plan-block"><h4>待确认问题</h4><p>${pendingCount ? `还有 ${pendingCount} 个待答问题` : "当前没有待确认问题"}</p></div>${reviewBlock}</div>`;
   const design = data.design || {};
   const details = `<details class="delivery-details"><summary>完整方案<span>五要素、选型、架构与测试</span></summary><div class="plan-grid"><div class="plan-block"><h4>领域建模</h4><ul>${Object.values(data.elements || {}).map((items) => listHtml(items, [])).join("")}</ul></div><div class="plan-block"><h4>组件选型</h4><ul>${listHtml(list(data.components).map((item) => `${item.name} · ${item.decision} · ${item.reason}`), [])}</ul></div><div class="plan-block"><h4>技术与部署</h4><p>${escapeHtml(design.tech_stack_and_deployment || "")}</p><ul>${listHtml(design.security_and_degradation, [])}</ul></div><div class="plan-block"><h4>测试设计</h4><ul>${listHtml(design.testing, [])}</ul></div></div></details>`;
-  const confirm = ready ? '<button class="primary-button" id="confirmPlanButton" type="button">确认方案，交接进入后端开发</button>' : '<button class="secondary-button" id="confirmPlanButton" type="button" disabled>先完成待确认项和 80 分审稿门禁</button>';
-  $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 方案</span><h3>${escapeHtml(plan.title || project.idea)}</h3></div><span class="status-chip ${ready ? "is-done" : "is-confirm"}">${ready ? "等你确认" : "待复核"}</span></div><p class="panel-copy">方案会先经过老师的待确认问题和统一审稿，达到 80 分且没有高严重度问题后才能进入后端开发。</p>${summary}${details}<div class="panel-actions"><button class="secondary-button" id="modifyPlanButton" type="button">方案需要修改</button>${confirm}</div>`;
+  const confirm = ready ? '<button class="primary-button" id="confirmPlanButton" type="button"><span>确认方案，交接进入后端开发</span><span class="button-arrow">↗</span></button>' : '<button class="secondary-button" id="confirmPlanButton" type="button" disabled>先完成待确认项和 80 分审稿门禁</button>';
+  const nextStep = ready ? `<div class="plan-next-step"><div><strong>下一步</strong><span>方案已通过，可以进入后端开发准备。</span></div>${confirm}</div>` : "";
+  $("#planPanel").innerHTML = `<div class="panel-heading"><div><span class="section-kicker">模块一 · PRD 方案</span><h3>${escapeHtml(plan.title || project.idea)}</h3></div><span class="status-chip ${ready ? "is-done" : "is-confirm"}">${ready ? "等你确认" : "待复核"}</span></div><p class="panel-copy">方案会先经过老师的待确认问题和统一审稿，达到 80 分且没有高严重度问题后才能进入后端开发。</p>${nextStep}${summary}${details}<div class="panel-actions"><button class="secondary-button" id="modifyPlanButton" type="button">方案需要修改</button>${ready ? "" : confirm}</div>`;
   $("#confirmPlanButton")?.addEventListener("click", () => confirmPlan(project, true));
   $("#modifyPlanButton")?.addEventListener("click", () => confirmPlan(project, false));
 }
@@ -764,10 +773,12 @@ function renderWorkshopAnswers(project, plan) {
   const questions = list(workshop.answer_questions).length ? list(workshop.answer_questions) : list(plan.open_questions);
   const draft = list(workshop.answer_draft);
   const intro = !list(workshop.answer_transcript).length && questions.length ? `<div class="teacher-chat-message is-assistant"><span class="teacher-chat-role">Agent 工坊</span><p>${escapeHtml(workshop.answer_intro || `方案里有 ${questions.length} 个还没想清楚的问题，我们一题一题过。想好的直接回答，拿不准可以点“帮我想想”。`)}</p></div>` : "";
-  const draftCard = draft.length ? `<div class="teacher-chat-draft"><strong>这些回答准备写回需求文档</strong>${draft.map((item) => `<p><b>${escapeHtml(item.question || "")}</b><br />${escapeHtml(item.answer || "")}</p>`).join("")}<button class="primary-button" id="saveWorkshopAnswersButton" type="button">保存回答并重新推导</button></div>` : "";
+  const draftCard = draft.length ? `<div class="teacher-chat-draft"><strong>这些回答已经收齐</strong>${draft.map((item) => `<p><b>${escapeHtml(item.question || "")}</b><br />${escapeHtml(item.answer || "")}</p>`).join("")}<button class="primary-button" id="saveWorkshopAnswersButton" type="button"><span>重新整理 PRD</span><span class="button-arrow">↗</span></button></div>` : "";
   const countLabel = questions.length ? `${questions.length} 条` : "动态";
+  const answerComposer = draft.length ? "" : teacherChatComposer("answers");
+  const answerSuggestions = draft.length ? "" : `<div class="teacher-suggestions">${renderTeacherSuggestions(project, "answers")}</div>`;
   const panel = $("#questionPanel");
-  panel.innerHTML = `<div class="panel-heading"><div><span class="section-kicker">方案待确认问题 · ${countLabel}</span><h3>继续和老师对话</h3></div><span class="status-chip is-confirm">统一评分前必须答完</span></div><p class="panel-copy">老师会按原始方案问题逐题推进。回答、选项、帮我想想、跳过和先保存都在同一段聊天里完成。</p>${renderTeacherChat(project, "answers", intro)}<div class="teacher-suggestions">${renderTeacherSuggestions(project, "answers")}</div>${draftCard}${teacherChatComposer("answers")}<div class="panel-actions"><button class="secondary-button" id="backToPlanButton" type="button">返回方案概览</button></div>`;
+  panel.innerHTML = `<div class="panel-heading"><div><span class="section-kicker">方案待确认问题 · ${countLabel}</span><h3>${draft.length ? "回答已收齐" : "继续和老师对话"}</h3></div><span class="status-chip is-confirm">${draft.length ? "等待重新整理 PRD" : "统一评分前必须答完"}</span></div><p class="panel-copy">${draft.length ? "请点击“重新整理 PRD”，系统会把这些回答写回方案并重新审阅。" : "老师会按原始方案问题逐题推进。回答、选项、帮我想想、跳过和先保存都在同一段聊天里完成。"}</p>${renderTeacherChat(project, "answers", intro)}${answerSuggestions}${draftCard}${answerComposer}<div class="panel-actions"><button class="secondary-button" id="backToPlanButton" type="button">返回方案概览</button></div>`;
   bindTeacherChat(project, "answers");
   panel.querySelector("#backToPlanButton")?.addEventListener("click", () => renderWorkshopPlan(project, plan));
   panel.querySelector("#saveWorkshopAnswersButton")?.addEventListener("click", async (event) => {
