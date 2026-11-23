@@ -164,6 +164,9 @@ def test_replan_after_answered_batch_with_passing_review_opens_plan_confirmation
     assert replanned["plan"]["review_ok"] is True
     assert replanned["workshop"]["answer_questions"] == []
     assert replanned["plan"]["open_questions"] == []
+    listed = next(item for item in client.get("/api/v1/projects").json()["projects"] if item["id"] == project["id"])
+    assert listed["workshop"]["answer_questions"] == []
+    assert listed["plan"]["open_questions"] == []
     confirmed = client.post(path + "/confirm-plan", json={"confirmed": True})
     assert confirmed.status_code == 200
     assert confirmed.json()["project"]["status"] == "backend_building"

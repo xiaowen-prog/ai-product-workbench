@@ -278,4 +278,10 @@ def public_project(project: Project) -> dict[str, Any]:
     workshop = data.get("workshop") or {}
     if workshop.get("answer_questions"):
         workshop["answer_questions"] = workshop["answer_questions"][:MAX_PLAN_QUESTIONS]
+    plan = data.get("plan") or {}
+    if plan.get("review_ok") is True and workshop.get("decisions") and not workshop.get("answer_draft"):
+        # 复审已经通过时，列表和恢复入口都应显示方案确认，而不是旧的
+        # open_questions 快照。数据库里的原始老师工作区仍完整保留。
+        workshop["answer_questions"] = []
+        plan["open_questions"] = []
     return data
