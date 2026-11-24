@@ -2125,7 +2125,8 @@ async function loadProjects() {
       ...projects,
       ...cached
     ];
-    const savedId = state.current?.id || storageGet("ai-workbench-project") || storageGet("ai-workbench-online-preview-current");
+    const requestedId = new URLSearchParams(window.location.search).get("project");
+    const savedId = requestedId || state.current?.id || storageGet("ai-workbench-project") || storageGet("ai-workbench-online-preview-current");
     if (selection === safety.selection) {
       const serverMatch = projects.find(p => p.id === savedId);
       const saved = state.projects.find(p => p.id === savedId) || state.current;
